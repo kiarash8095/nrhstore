@@ -7,6 +7,9 @@ import Footer from "@/components/layout/footer";
 import { cn } from "@/lib/utils";
 import ReactQueryProvider from "@/providers/ReactQueryProvider";
 import { getMainCategories, getSubCategories } from "@/services/categories";
+import MobileMenu from "@/components/layout/mobileMenu";
+import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/react-query";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -25,28 +28,42 @@ export default async function RootLayout({
 }>) {
   const slugs = ["edari", "network", "printer", "hardware", "accessory"];
   const ids = [365, 55, 59, 57, 58];
+  
+  const queryClient = getQueryClient()
   const categories = await getMainCategories(slugs, ids);
-  // const subCategories = await getSubCategories(id)
+
+  await queryClient.prefetchQuery({
+    queryKey: ["sub-categories", ids],
+    queryFn: () => getSubCategories(ids)
+  })
+
+
+
   return (
     <html
       lang="fa"
       dir="rtl"
       className={cn(
-        "h-full",
+        "h-full w-full",
+
         "antialiased",
         // geistSans.variable,
         // geistMono.variable,
-        YekanBakh.className,
-        "font-sans",
-        inter.variable,
+        YekanBakh.variable,
+        // "font-sans",
+        // inter.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full w-full flex flex-col overflow-x-hidden">
         <ReactQueryProvider>
+          <HydrationBoundary state={dehydrate(queryClient)}>
+
           <Header categories={categories} />
 
           {children}
+          <MobileMenu />
           <Footer />
+          </HydrationBoundary>
         </ReactQueryProvider>
       </body>
     </html>

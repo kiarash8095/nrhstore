@@ -13,4 +13,5 @@ export const YekanBakh = localFont({
             style: "normal"
         },
     ],
+    variable: "--font-yekan",
 })

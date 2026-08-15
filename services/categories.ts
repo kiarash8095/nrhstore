@@ -8,15 +8,23 @@ export const getAllCategories = async () => {
 };
 // const slugs = ["edari", "network", "printer", "hardware", "Accessory"]
 // const ids = [365, 55, 59, 57, 58];
-export const getMainCategories = async (slugs: string[], ids: number[]) => {
-  const { data } = await api.get<Category[]>("/products/categories", {
-    params: {
-      parent: 0,
-      slug: slugs.join(","),
-      include: ids.join(","),
-    },
-  });
-  console.log("main categories api call");
+export const getMainCategories = async (
+  ids: number[],
+  slugs?: string[]
+): Promise<Category[]> => {
+  const params = {
+    parent: 0,
+    include: ids.join(","),
+    ...(slugs?.length ? { slug: slugs.join(",") } : {}),
+  };
+
+  const { data } = await api.get<Category[]>(
+    "/products/categories",
+    {
+      params,
+    }
+  );
+
   return data;
 };
 

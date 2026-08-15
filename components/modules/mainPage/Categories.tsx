@@ -1,40 +1,60 @@
 import { getMainCategories } from "@/services/categories";
-import { useQuery } from "@tanstack/react-query";
 import { HiOutlineViewGrid } from "react-icons/hi";
 import Image from "next/image";
-import { Category } from "@/types/category";
+import { shortText } from "@/utils/shortText";
+import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
+import { Carousel, CarouselContent, 
+    CarouselItem,CarouselNext, CarouselPrevious} from "@/components/ui/carousel";
 
 
-
-export function Categories()
+export async function Categories()
 {
-    const slugs = ["edari", "network", "printer", "hardware", "accessory"];
-  const ids = [365, 55, 59, 57, 58];
-    const {data} = useQuery<Category[]>({
-        queryKey: ["main-categories"],
-        queryFn: () => getMainCategories(slugs, ids)
-    })
+    const slugs = ["edari", "network", "printer", "hardware", "accessory", "laptop"];
+    const ids = [55, 85, 57, 58, 59, 215];
+    const data = await getMainCategories(ids)
     console.log(data);
+
+
     return(
-        <div>
-            <div className="flex">
-                <HiOutlineViewGrid/>
-                <div className="flex flex-col items-center">
-                    <h2>دسته ها</h2>
-                    <span>نمایش همه</span>
+        <div className="w-full my-15">
+            <div className="flex mb-7">
+                <div className="flex items-center p-2 rounded-lg border">
+
+                    <HiOutlineViewGrid color="orange" size={30}/>
+                </div>
+                <div className="flex flex-col items-start mr-3">
+                    <p className="text-2xl font-bold">دسته ها</p>
+                    <span className="font-thin text-sm text-gray-500">نمایش همه</span>
                 </div>
             </div>
 
-            <div className="flex overflow-x-hidden scroll-fade gap-10">
-                {data?.map(category => {
-                    
-                    return(<div key={category.id} className="flex items-center gap-2">
-                        <Image src={category?.image.src} width={90} height={90}
-                         alt={`عکس دسته بندی ${category.name}`}/>
-                         <p>{category?.name}</p>
-                    </div>)
-                })}
-            </div>
+            <Carousel className="w-full m-auto" opts={{
+                direction: 'rtl',
+            }}>
+
+                <CarouselContent>
+                    {data?.map(category => {
+
+                        return(<Link href={`/products/category/${category.slug}`} key={category.id}>
+                            <CarouselItem>
+                                <div className="p-1">
+                                    <Card className="">
+                                        <CardContent className="flex flex-col aspect-square items-center justify-center
+                                         p-6">
+                                            <Image width={80} height={80} src={category?.image.src} alt={`${category.name}`}/>
+                                            <p>{shortText(category?.name)}</p>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </CarouselItem>
+                        </Link>)
+                    })}
+                </CarouselContent>
+                <CarouselPrevious/>
+                <CarouselNext/>
+            </Carousel>
+
         </div>
     )
 }

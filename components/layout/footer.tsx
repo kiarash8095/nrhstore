@@ -1,4 +1,4 @@
-"use client"
+// "use client"
 import styles from './footer.module.css'
 import Image from 'next/image';
 import { TfiHeadphoneAlt } from "react-icons/tfi";
@@ -29,7 +29,7 @@ export default function Footer()
             </div>
             <div className='flex items-center justify-between p-3 flex-row gap-6'>
                 <div className='flex flex-col gap-6'>
-                    <Image src={footerLogo} className='w-3xs' alt='لوگوی فوتر'/>
+                    <Image loading='lazy' src={footerLogo} className='w-3xs' alt='لوگوی فوتر'/>
                     <p>همدان-خیابان بوعلی-کوچه شریف-ساختمان نوین</p>
                     <div className='flex flex-row gap-7 p-4 bg-gray-500 w-fit rounded-xl'>
                         <a href="https://t.me/">
@@ -66,9 +66,9 @@ export default function Footer()
                     <div></div>
                 </div>
                 <div className='flex'>
-                    <Image src={enamadLogo}
+                    <Image loading='lazy' src={enamadLogo}
                      width={100} alt='' height={100}/>
-                    <Image src={enamadLogo}
+                    <Image loading='lazy' src={enamadLogo}
                      width={100} alt='' height={100}/>
                 </div>
             </div>

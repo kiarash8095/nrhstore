@@ -87,12 +87,6 @@ export default function Header({ categories }: HeaderProps) {
     staleTime: 60 * 1000,
   });
 
-  const { data: allCategories } = useQuery({
-    queryKey: ["categories"],
-    queryFn: getAllCategories,
-  });
-
-  // console.log(allCategories);
 
   return (
     <>
@@ -232,60 +226,196 @@ export default function Header({ categories }: HeaderProps) {
         </div>
       </header>
 
-      <nav className="flex mt-5 z-50">
-        <div className="">
-          <div
-            className="relative"
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
+      <nav className="flex mt-5">
+        {/* این wrapper باید هم Button و هم Mega Menu را در بر بگیرد */}
+        <div
+          className="relative"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          {/* Trigger Button */}
+          <button
+            type="button"
+            className="
+              flex
+              items-center
+              justify-center
+              w-50
+              px-4
+              py-2
+              mr-5
+              bg-orange-500
+              rounded-3xl
+              text-white
+              cursor-pointer
+            "
           >
-            <button
-              className="flex w-auto text-sm px-4 py-2 items-center justify-center p-2 
-              mr-5 bg-orange-500 rounded-3xl text-white text-center cursor-pointer"
+            <RxHamburgerMenu size={20} className="ml-3" />
+
+            <span>دسته بندی ها</span>
+
+            <IoIosArrowBack
+              className={`mr-2 transition-transform duration-200 ${
+                isOpen ? "-rotate-90" : ""
+              }`}
+            />
+          </button>
+
+          {/* Mega Menu */}
+          <div
+            className={`
+              absolute
+              top-full
+              right-5
+              z-50
+              pt-3
+
+              transition-all
+              duration-200
+              ease-out
+
+              ${
+                isOpen
+                  ? "visible opacity-100 translate-y-0"
+                  : "invisible opacity-0 translate-y-2 pointer-events-none"
+              }
+            `}
+          >
+            <div
+              className="
+                flex
+                items-start
+                gap-2
+                p-2
+                bg-white
+                rounded-xl
+                shadow-xl
+                border
+                border-gray-100
+                min-w-[700px]
+              "
             >
-              <RxHamburgerMenu size={20} className="ml-3" />
-              <span>دسته بندی ها</span>
-              <IoIosArrowBack className="mr-2" />
-            </button>
+              {/* ========================= */}
+              {/* ستون اول - Categories */}
+              {/* ========================= */}
 
-            <div className="relative pt-5">
-              <div className="flex flex-col">
-                <div
-                  className={`absolute flex top-full right-5 pt-4 transition duration-300
-                ${
-                  isOpen
-                    ? "visible opacity-100 -translate-x-4"
-                    : "invisible opacity-0 translate-y-4 translate-x-4"
-                }`}
-                >
-                  <div className="w-56 rounded-r-xl bg-white/20 p-3 rounded-xl font-light">
-                    {categories?.map((category) => {
-                      const Icon = CategoryIcons[category.slug];
+              <div className="w-52">
+                <div className="mb-2 px-3 py-2">
+                  <span className="text-sm font-bold">
+                    دسته بندی ها
+                  </span>
+                </div>
 
-                      return (
-                        <div
-                          onMouseEnter={() => handleMouseEnter(category)}
-                          key={category.id}
-                          className="mb-4 p-2 w-auto justify-center bg-orange-100 rounded-md
-                                 -translate-y-2 transition-all duration-300
-                                 hover:-translate-x-2"
-                        >
-                          <button className="flex cursor-pointer">
-                            <div className="flex">
-                              {Icon && <Icon className="ml-2" />}
-                              <span className="font-regular">
-                                {category.name}
-                              </span>
-                            </div>
-                            <IoIosArrowBack className="mr-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="flex flex-col gap-1">
+                  {categories?.map((category) => (
+                    <Link href={`/products/category/${category.slug}`}
+                      key={category.id}
+                      type="button"
+                      onMouseEnter={() => setActiveCategory(category)}
+                      className="
+                        flex
+                        items-center
+                        justify-between
+                        w-full
+                        px-3
+                        py-3
+                        rounded-lg
+                        text-sm
+                        text-right
+                        font-bold
+                        hover:bg-orange-50
+                        hover:text-orange-500
+                        transition-colors
+                        duration-150
+                        cursor-pointer
+                      "
+                    >
+                      <span>{category.name}</span>
 
-                  {/* ستون دوم */}
-                  <div className="w-72 bg-white  p-4 border-r font-light -translate-x-5
+                      <IoIosArrowBack size={16} />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* ========================= */}
+              {/* ستون دوم */}
+              {/* ========================= */}
+
+              <div className="w-60 min-h-[300px] border-r pr-2 transition-all duration-300">
+                <div className="mb-2 px-3 py-2">
+                  <Link href={`/products/category/${activeCategory?.slug}`}>
+                    <p className="text-sm">مشاهده ی همه {activeCategory?.name}</p>
+                  </Link>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  {activeSubCategory?.map(category => (
+                    <div key={category.id}>
+                      <p className="text-normal">{category.name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ========================= */}
+              {/* ستون سوم */}
+              {/* ========================= */}
+
+              <div className="w-60 min-h-[300px] border-r pr-2">
+                <div className="mb-2 px-3 py-2">
+                  <span className="text-sm font-bold">
+                    محصولات
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    className="
+                      w-full
+                      px-3
+                      py-2
+                      text-right
+                      text-sm
+                      rounded-lg
+                      hover:bg-gray-100
+                      transition
+                    "
+                  >
+                    محصول اول
+                  </button>
+
+                  <button
+                    type="button"
+                    className="
+                      w-full
+                      px-3
+                      py-2
+                      text-right
+                      text-sm
+                      rounded-lg
+                      hover:bg-gray-100
+                      transition
+                    "
+                  >
+                    محصول دوم
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </>
+  );
+}
+
+
+
+
+
+{/* <div className="w-72 bg-white  p-4 border-r font-light -translate-x-5
                   bg-white/40 p-3 rounded-xl">
                     <Link
                       href={`/products?category=${activeCategory?.id}`}
@@ -298,35 +428,4 @@ export default function Header({ categories }: HeaderProps) {
                         <p className="font-light text-md">{category.name}</p>
                       </div>
                     ))}
-                  </div>
-
-                  {/* ستون سوم */}
-                  <div className="w-64 bg-white p-4 border-r -translate-x-5
-                  bg-white/40 p-3 rounded-xl">
-                    Banner یا محصولات پیشنهادی
-                  </div>
-                </div>
-
-                <div
-                  className={`w-full transition duration-300 ${
-                    isOpen
-                      ? "visible opacity-100 -translate-x-4"
-                      : "invisible opacity-0 translate-y-4 translate-x-4"
-                  }`}
-                >
-                  <button
-                    className="w-full py-3 text-sm bg-orange-400 text-white rounded-xl
-               hover:bg-orange-600 cursor-pointer transition-all flex
-                items-center justify-center gap-2"
-                  >
-                    همه دسته بندی ها <IoGrid />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-    </>
-  );
-}
+                  </div> */}

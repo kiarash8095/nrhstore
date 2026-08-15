@@ -11,7 +11,7 @@ import MobileMenu from "@/components/layout/mobileMenu";
 import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/react-query";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "نوین رایانه همدان",
@@ -30,7 +30,7 @@ export default async function RootLayout({
   const ids = [365, 55, 59, 57, 58];
   
   const queryClient = getQueryClient()
-  const categories = await getMainCategories(slugs, ids);
+  const categories = await getMainCategories(ids, slugs);
 
   await queryClient.prefetchQuery({
     queryKey: ["sub-categories", ids],

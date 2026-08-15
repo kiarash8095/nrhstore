@@ -1,3 +1,5 @@
+"use client"
+
 import { useSwipe } from "@/hooks/useSwipe";
 import React, { useEffect, useState, useRef } from "react"
 import { IoIosArrowForward, IoIosArrowBack } from "react-icons/io"
@@ -64,7 +66,7 @@ export function BannerSlider({ autoplay = true, interval = 5000 }) {
 
     return (
         <div 
-            className="relative w-full max-w-6xl mx-auto"
+            className="relative w-full max-w-6xl mx-auto my-5"
             dir="rtl"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

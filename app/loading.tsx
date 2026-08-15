@@ -1,4 +1,6 @@
 export default function Home()
 {
-    return <div>Home</div>
+    return <div className="fixed w-full h-full bg-dark-200">
+        <p>Loading...</p>
+    </div>
 }

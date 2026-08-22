@@ -13,22 +13,19 @@ import { NetworkProducts } from "@/components/modules/mainPage/NetworkProducts";
 import { Accessories } from "@/components/modules/mainPage/Accessories";
 import { JanebiProducts } from "@/components/modules/mainPage/JanebiProducts";
 import { SticksToFooter } from "@/components/modules/mainPage/SticksToFooter";
-import { getSpecificProducts } from "@/services/getSpecificProducts";
-import { getAllCategories } from "@/services/categories";
 import { Suspense } from "react";
 import { AccessoriesSkeleton } from "@/components/skeleton/AccessoriesSkeleton";
 import { ProductsSkeleton } from "@/components/skeleton/ProductsSkeleton";
 import { CategoriesSkeleton } from "@/components/skeleton/CategoriesSkeleton";
+import { LazySection } from "@/components/common/LazySection";
 
-export default async function Home() {
+export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-7xl flex-col items-center justify-between px-3 bg-white dark:bg-black sm:items-start">
         <BannerSlider />
-        <Suspense fallback={<CategoriesSkeleton/>}>
+        <Categories />
 
-          <Categories />
-        </Suspense>
         <div className="flex justify-center m-auto mb-10 mt-5 w-[90%] rounded-xl">
           <Image
             className="object-cover rounded-xl"
@@ -36,13 +33,14 @@ export default async function Home() {
             alt="بنر اتصال پایدار"
           />
         </div>
-        <Suspense fallback={<ProductsSkeleton />}>
-          <Laptops />
-        </Suspense>
+
+        <Laptops />
+
         <BannersRow />
-        <Suspense fallback={<ProductsSkeleton />}>
+
+        <LazySection fallback={<ProductsSkeleton />}>
           <EdariProducts />
-        </Suspense>
+        </LazySection>
 
         <div className="flex gap-3">
           <div>
@@ -61,25 +59,25 @@ export default async function Home() {
           </div>
         </div>
 
-        <Suspense fallback={<ProductsSkeleton />}>
+        <LazySection fallback={<ProductsSkeleton />}>
           <NetworkProducts />
-        </Suspense>
+        </LazySection>
 
         <div>
           <Image src={gamingBanner} alt="عکس کیس گیمینگ" />
         </div>
 
-        <Suspense fallback={<AccessoriesSkeleton />}>
+        <LazySection fallback={<AccessoriesSkeleton />}>
           <Accessories />
-        </Suspense>
+        </LazySection>
 
         <div>
           <Image src={printerBanner} alt="خرید پرینتر همدان" />
         </div>
 
-        <Suspense fallback={<ProductsSkeleton />}>
+        <LazySection fallback={<ProductsSkeleton />}>
           <JanebiProducts />
-        </Suspense>
+        </LazySection>
 
         <SticksToFooter />
       </main>

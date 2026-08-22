@@ -29,3 +29,8 @@ export function shortText(
 
     
 }
+
+export function removeExtra(word:string)
+{
+    return word.replace(/&#\d+;/g, "").replace(/&[a-zA-Z]+;/g, "").trim();
+}

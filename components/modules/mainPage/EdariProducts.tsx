@@ -102,17 +102,6 @@ export async function EdariProducts()
                     <CarouselNext />
                   </Carousel>
 
-            {/* <div className="flex overflow-x-scroll scrollbar-none scroll-fade gap-10">
-                {data?.map(product => {
-                    // console.log(product?.images[0].src);
-                    return(<div key={product.id} className="flex flex-col items-center gap-2 ">
-                        <Image src={product?.images[0].src} width={90} height={90}
-                         alt={`عکس دسته بندی ${product.name}`}/>
-                         <p>{shortText(product?.name)}</p>
-                         <button>افزودن به سبد خرید</button>
-                    </div>)
-                })}
-            </div> */}
         </div>
     )
 }

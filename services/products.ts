@@ -1,3 +1,4 @@
+import { Products } from "@/types/products";
 import api from "./api";
 
 
@@ -9,7 +10,7 @@ export const getProducts = async() => {
 
 export const getProductDetails = async(slug: string) => 
 {
-    const {data} = await api.get(`/products/${slug}`)
+    const {data} = await api.get<Products>(`/products/${slug}`)
 
     return data
 }

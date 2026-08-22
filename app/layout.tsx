@@ -6,17 +6,17 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import { cn } from "@/lib/utils";
 import ReactQueryProvider from "@/providers/ReactQueryProvider";
-import { getMainCategories, getSubCategories } from "@/services/categories";
+import { getMainCategories, prefetchCategories } from "@/services/categories";
 import MobileMenu from "@/components/layout/mobileMenu";
-import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
-import { getQueryClient } from "@/lib/react-query";
+import { PageTransition } from "@/components/animation/pageTransition";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "نوین رایانه همدان",
   icons: {
-    icon: "/favicon.png",
+    icon: "/favicon.png?v=2",
+    shortcut: "/favicon.png",
   },
   description: "|",
 };
@@ -29,13 +29,13 @@ export default async function RootLayout({
   const slugs = ["edari", "network", "printer", "hardware", "accessory"];
   const ids = [365, 55, 59, 57, 58];
   
-  const queryClient = getQueryClient()
-  const categories = await getMainCategories(ids, slugs);
+  // const queryClient = getQueryClient()
+  const categories = await prefetchCategories(ids, slugs);
 
-  await queryClient.prefetchQuery({
-    queryKey: ["sub-categories", ids],
-    queryFn: () => getSubCategories(ids)
-  })
+  // await queryClient.prefetchQuery({
+  //   queryKey: ["sub-categories", ids],
+  //   queryFn: () => getSubCategories(ids)
+  // })
 
 
 
@@ -54,16 +54,17 @@ export default async function RootLayout({
         // inter.variable,
       )}
     >
-      <body className="min-h-full w-full flex flex-col overflow-x-hidden">
+      <body className="min-h-full w-full flex flex-col overflow-x-hidden bg-[#f7f8fa]">
         <ReactQueryProvider>
-          <HydrationBoundary state={dehydrate(queryClient)}>
-
-          <Header categories={categories} />
+          {/* <HydrationBoundary state={dehydrate(queryClient)}> */}
+          <PageTransition>
+          <Header categories={categories}/>
 
           {children}
           <MobileMenu />
           <Footer />
-          </HydrationBoundary>
+          </PageTransition>
+          {/* </HydrationBoundary> */}
         </ReactQueryProvider>
       </body>
     </html>

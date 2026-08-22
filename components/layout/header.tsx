@@ -4,7 +4,7 @@ import styles from "./header.module.css";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SearchIcon} from "lucide-react";
+import { SearchIcon } from "lucide-react";
 import { RxHamburgerMenu } from "react-icons/rx";
 import { IoIosArrowBack } from "react-icons/io";
 import { IoClose } from "react-icons/io5";
@@ -20,14 +20,16 @@ import { CategoryIcons } from "@/constants/categories-icons";
 import React, { useMemo, useState } from "react";
 import { getSearchResult } from "@/services/searchInputHeader";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Category } from "@/types/category";
+import { Category, SubCategory } from "@/types/category";
 import { SearchResult } from "@/types/search-result";
 import {
   getAllCategories,
+  getMainCategories,
   getSubCategories,
 } from "@/services/categories";
 import { sp } from "@/utils/numbers";
 import { SkeletonAvatar } from "../skeleton/searchResultSkeleton";
+import { Skeleton } from "../ui/skeleton";
 
 interface HeaderProps {
   categories: Category[];
@@ -37,12 +39,12 @@ export default function Header({ categories }: HeaderProps) {
   const [input, setInput] = useState("");
   const [isInput, setIsInput] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [isClicked, setIsClicked] = useState(false)
+  const [isClicked, setIsClicked] = useState(false);
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
 
   const debouncedInput = useDebounce(input, 500);
 
-  //   const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
   const inputHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -54,29 +56,27 @@ export default function Header({ categories }: HeaderProps) {
   const focusHandler = () => setIsInput(true);
   const blurHandler = () => setIsInput(false);
 
+  const ids = [55, 365, 57, 58, 59];
+
   const handleMouseEnter = (category: Category) => {
     setActiveCategory(category);
+    queryClient.prefetchQuery({
+      queryKey: ["sub-category", category?.id],
+      queryFn: () => getSubCategories(category.id),
+      staleTime: 1000 * 60 * 10,
+    });
   };
-
-  const showLeftDiv = () => {
-    setIsClicked(true)
-  }
-  const ids = [365, 55, 59, 57, 58];
-
-  const { data: subCategoryData, isFetching } = useQuery({
-    queryKey: ["sub-categories", ids],
-    queryFn: () => getSubCategories(ids),
-    staleTime: Infinity,
+  const {
+    data: subCategoryData = [],
+    isPending,
+    isFetching,
+  } = useQuery<SubCategory[]>({
+    queryKey: ["sub-category", activeCategory?.id],
+    queryFn: () => getSubCategories(activeCategory!.id),
+    enabled: !!activeCategory?.id,
+    staleTime: 1000 * 60 * 10,
   });
-
-  const activeSubCategory = useMemo(() => {
-    if (!subCategoryData || !activeCategory) return [];
-    return subCategoryData.filter(
-      (subCat) => subCat.parent === activeCategory.id,
-    );
-  }, [subCategoryData, activeCategory]);
-
-  // console.log(activeSubCategory);
+  console.log(subCategoryData);
 
   const { data: searchData = [], isPending: searchLoading } = useQuery<
     SearchResult[]
@@ -86,7 +86,6 @@ export default function Header({ categories }: HeaderProps) {
     enabled: debouncedInput.trim().length > 0,
     staleTime: 60 * 1000,
   });
-
 
   return (
     <>
@@ -174,23 +173,32 @@ export default function Header({ categories }: HeaderProps) {
         </div>
 
         <div className="relative flex justify-between gap-5">
-            <div className={`fixed flex flex-col justify-between left-0
+          <div
+            className={`fixed flex flex-col justify-between left-0
              top-0 h-full bg-gray-200 p-4 z-999 transition duration-250
-              ${isClicked ? "visible opacity-100": "invisible opacity-0"}`}>
-                <IoClose onClick={() => setIsClicked(false)} className="absolute left-3"/>
-                <p className="relative bottom-1">سبد خرید خالی است.</p>
-            </div>
+              ${isClicked ? "visible opacity-100" : "invisible opacity-0"}`}
+          >
+            <IoClose
+              onClick={() => setIsClicked(false)}
+              className="absolute left-3"
+            />
+            <p className="relative bottom-1">سبد خرید خالی است.</p>
+          </div>
 
-                 {/*  شروع آیکن یوزر و سبد خرید*/}
+          {/*  شروع آیکن یوزر و سبد خرید*/}
           <div className="relative group">
             <div
               className="w-13 h-13 border-1 border-gray rounded-full
            justify-center align-center p-2 hover:border-orange-500 transition delay-100
             shadow-md "
             >
-              <div className="flex flex-col items-center " >
-                <Image className="w-9 h-9 cursor-pointer"onClick={() => setIsClicked(isClicked => !isClicked)}
-                 src={userRound} alt="لوگوی کاربری" />
+              <div className="flex flex-col items-center ">
+                <Image
+                  className="w-9 h-9 cursor-pointer"
+                  onClick={() => setIsClicked((isClicked) => !isClicked)}
+                  src={userRound}
+                  alt="لوگوی کاربری"
+                />
 
                 <div
                   className="absolute w-40 h-50 bg-gray-100 invisible top-10
@@ -211,7 +219,11 @@ export default function Header({ categories }: HeaderProps) {
             >
               <div className="flex flex-col items-center ">
                 <p className="absolute right-2 w-3 h-3 rounded-full bg-[#000]"></p>
-                <Image className="w-9 h-9 cursor-pointer" src={handBag} alt="لوگوی سبد خرید" />
+                <Image
+                  className="w-9 h-9 cursor-pointer"
+                  src={handBag}
+                  alt="لوگوی سبد خرید"
+                />
 
                 <div
                   className="absolute w-40 h-50 bg-gray-100 invisible top-10
@@ -301,17 +313,16 @@ export default function Header({ categories }: HeaderProps) {
 
               <div className="w-52">
                 <div className="mb-2 px-3 py-2">
-                  <span className="text-sm font-bold">
-                    دسته بندی ها
-                  </span>
+                  <span className="text-sm font-bold">دسته بندی ها</span>
                 </div>
 
                 <div className="flex flex-col gap-1">
                   {categories?.map((category) => (
-                    <Link href={`/products/category/${category.slug}`}
+                    <Link
+                      href={`/products/category/${category.slug}`}
                       key={category.id}
                       type="button"
-                      onMouseEnter={() => setActiveCategory(category)}
+                      onMouseEnter={() => handleMouseEnter(category)}
                       className="
                         flex
                         items-center
@@ -345,16 +356,30 @@ export default function Header({ categories }: HeaderProps) {
               <div className="w-60 min-h-[300px] border-r pr-2 transition-all duration-300">
                 <div className="mb-2 px-3 py-2">
                   <Link href={`/products/category/${activeCategory?.slug}`}>
-                    <p className="text-sm">مشاهده ی همه {activeCategory?.name}</p>
+                    <p className="text-sm">
+                      مشاهده ی همه {activeCategory?.name}
+                    </p>
                   </Link>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  {activeSubCategory?.map(category => (
-                    <div key={category.id}>
-                      <p className="text-normal">{category.name}</p>
-                    </div>
-                  ))}
+                  {isPending || isFetching ? (
+                    <>
+                      <Skeleton className="h-6 w-full rounded-md" />
+                      <Skeleton className="h-6 w-5/6 rounded-md" />
+                      <Skeleton className="h-6 w-4/5 rounded-md" />
+                      <Skeleton className="h-6 w-3/4 rounded-md" />
+                      <Skeleton className="h-6 w-4/5 rounded-md" />
+                    </>
+                  ) : (
+                    <>
+                      {subCategoryData.map((category) => (
+                        <div key={category.id}>
+                          <p className="text-normal">{category.name}</p>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -364,9 +389,7 @@ export default function Header({ categories }: HeaderProps) {
 
               <div className="w-60 min-h-[300px] border-r pr-2">
                 <div className="mb-2 px-3 py-2">
-                  <span className="text-sm font-bold">
-                    محصولات
-                  </span>
+                  <span className="text-sm font-bold">محصولات</span>
                 </div>
 
                 <div className="flex flex-col gap-1">
@@ -410,22 +433,3 @@ export default function Header({ categories }: HeaderProps) {
     </>
   );
 }
-
-
-
-
-
-{/* <div className="w-72 bg-white  p-4 border-r font-light -translate-x-5
-                  bg-white/40 p-3 rounded-xl">
-                    <Link
-                      href={`/products?category=${activeCategory?.id}`}
-                      className="text-orange-500"
-                    >
-                      <p> مشاهده همه {activeCategory?.name}</p>
-                    </Link>
-                    {activeSubCategory?.map((category) => (
-                      <div key={category.id}>
-                        <p className="font-light text-md">{category.name}</p>
-                      </div>
-                    ))}
-                  </div> */}

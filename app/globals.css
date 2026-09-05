@@ -128,6 +128,7 @@
   body {
     @apply bg-background text-foreground;
     @apply w-full overflow-x-hidden;
+    @apply h-full;
     @apply bg-background text-foreground;
     font-family: var(--font-yekan), sans-serif;
     -webkit-overflow-scrolling: touch;
@@ -137,6 +138,7 @@
   html {
     @apply font-sans;
     @apply w-full overflow-x-hidden;
+    @apply h-full;
     font-family: var(--font-yekan), sans-serif;
     -webkit-overflow-scrolling: touch;
   }

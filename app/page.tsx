@@ -26,9 +26,9 @@ export default function Home() {
         <BannerSlider />
         <Categories />
 
-        <div className="flex justify-center m-auto mb-10 mt-5 w-[90%] rounded-xl">
+        <div className="mb-10 mt-5 w-full">
           <Image
-            className="object-cover rounded-xl"
+            className="h-auto w-full object-cover"
             src={secondBanner}
             alt="بنر اتصال پایدار"
           />

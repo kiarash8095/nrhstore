@@ -18,6 +18,7 @@ export interface Products {
     id:number;
     name: string;
     slug: string;
+    description: string;
     images: ProductImage[];
     average_rating: string;
     is_in_stock: boolean;
@@ -32,6 +33,11 @@ export interface Products {
         slug: string;
     } []
     permalink: string;
+    categories:{
+        id:number;
+        name:string;
+        slug:string;
+    }[]
     review_count: number;
     attributes: ProductAttributes[];
 }

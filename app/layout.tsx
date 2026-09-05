@@ -54,7 +54,7 @@ export default async function RootLayout({
         // inter.variable,
       )}
     >
-      <body className="min-h-full w-full flex flex-col overflow-x-hidden bg-[#f7f8fa]">
+      <body className="min-h-full w-full  flex flex-col overflow-x-hidden bg-[#f7f8fa]">
         <ReactQueryProvider>
           {/* <HydrationBoundary state={dehydrate(queryClient)}> */}
           <PageTransition>

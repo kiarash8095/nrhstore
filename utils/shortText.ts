@@ -34,3 +34,8 @@ export function removeExtra(word:string)
 {
     return word.replace(/&#\d+;/g, "").replace(/&[a-zA-Z]+;/g, "").trim();
 }
+
+export function removeTagP(words:string)
+{
+    return words.trim().replace(/^\s*<p>\s*/i, "").replace(/\s*<\/p>\s*$/i, "")
+}

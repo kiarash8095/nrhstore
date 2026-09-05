@@ -16,11 +16,8 @@ import ToomaanIcon from "@/components/icons/ToomaanIcon";
 import { CiHardDrive } from "react-icons/ci";
 import { getSpecificProducts } from "@/services/getSpecificProducts";
 
-
-
 export async function JanebiProducts() {
-
-  const products = await getSpecificProducts(215)
+  const products = await getSpecificProducts(215);
   // console.log(data);
   return (
     <div className="w-full my-15">
@@ -43,14 +40,20 @@ export async function JanebiProducts() {
       >
         <CarouselContent>
           {products?.map((product) => (
-            <CarouselItem key={product.id} className="basis-1/4 scroll-fade">
+            <CarouselItem
+              key={product.id}
+              className="basis-[90%] scroll-fade sm:basis-1/2 lg:basis-1/3"
+            >
               <div className="p-1">
                 <Card
                   className="hover:shadow-lg border hover:border-orange-400 w-full transition-all duration-300
                              hover:-translate-y-1 cursor-pointer"
                 >
-                  <CardContent className="flex flex-col aspect-square items-center justify-between p-2">
-                    <Link href={`/products/${product.slug}`} className="group">
+                  <CardContent className="flex h-[430px] flex-col items-center justify-between p-2 sm:h-[450px]">
+                    <Link
+                      href={`/products/${product.slug}`}
+                      className="group flex h-full w-full flex-col"
+                    >
                       <div className="flex w-full justify-between">
                         <div
                           className="flex gap-1 items-center justify-center pr-2 pl-2
@@ -70,13 +73,13 @@ export async function JanebiProducts() {
                           <FaStar color="orange" />
                         </div>
                       </div>
-                      <div className="relative p-3">
+                      <div className="relative flex h-52 items-center justify-center p-3">
                         <Image
                           width={250}
                           height={250}
                           src={product?.images[0].src}
                           alt={`${product.name}`}
-                          className="object-cover group-hover:scale-105 transition duration-300"
+                          className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
                         />
                       </div>
 

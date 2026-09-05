@@ -14,58 +14,61 @@ export default function ProductImages({ product }: ProductImagesProps) {
     product.images[0]?.src || "",
   );
 
-//   console.log(product);
+  //   console.log(product);
 
   const changeImageHandler = (src: string) => {
     setProductImage(src);
   };
   return (
-    <div className="flex flex-col items-center w-md max-w-md p-2 rounded-lg border-l-2 border-dashed border-gray-300">
-        <Image
-            className="bg-gray-400 rounded-lg transition duration-300 object-cover"
-            src={productImage}
-            alt={product?.name}
-            width={350}
-            height={350}
-          />
+    <div className="flex w-full flex-col items-center rounded-lg border-l-2 border-dashed border-gray-300 p-2 sm:p-3 lg:w-md lg:max-w-md">
+      <Image
+        className="rounded-lg bg-gray-400 object-cover transition duration-300"
+        src={productImage}
+        alt={product?.name}
+        width={350}
+        height={350}
+      />
 
-        <div className="flex gap-4 transition-all duration-300 my-12">
-          {product?.images.map((item) => (
-            <div
-              onClick={() => changeImageHandler(item.src)}
-              className={`border border-2 border-gray-300 transition duration-300
+      <div className="my-6 flex gap-2 transition-all duration-300 sm:gap-4 sm:my-12">
+        {product?.images.map((item) => (
+          <div
+            onClick={() => changeImageHandler(item.src)}
+            className={`cursor-pointer rounded-lg border border-2 border-gray-300 transition duration-300
                                  hover:border-gray-500
-                                cursor-pointer rounded-lg
                                  ${productImage === item.src ? "border-orange-500" : ""}`}
-              key={item.id}
-            >
-              <Image
-                className="rounded-lg"
-                src={item.src}
-                alt={item.name}
-                width={100}
-                height={100}
-              />
-            </div>
-          ))}
-
-          <div className="relative rounded-lg">
-            <div
-              className="absolute rounded-lg flex items-center cursor-pointer 
-                    justify-center backdrop-blur-sm h-inherit w-full h-full 
-                    border border-2 border-gray-300 hover:border-gray-500"
-            >
-              <HiDotsHorizontal size={50} color="white" />
-            </div>
+            key={item.id}
+          >
             <Image
               className="rounded-lg"
-              src={product?.images[0].src}
-              alt={product?.images[0].src}
-              width={100}
-              height={100}
+              src={item.src}
+              alt={item.name}
+              width={80}
+              height={80}
             />
           </div>
+        ))}
+
+        <div className="relative rounded-lg">
+          <div
+            className="absolute flex h-full w-full items-center justify-center 
+                    rounded-lg border border-2 border-gray-300 backdrop-blur-sm 
+                    transition duration-300 hover:border-gray-500 cursor-pointer"
+          >
+            <HiDotsHorizontal
+              size={40}
+              color="white"
+              className="sm:size-[50px]"
+            />
+          </div>
+          <Image
+            className="rounded-lg"
+            src={product?.images[0].src}
+            alt={product?.images[0].src}
+            width={80}
+            height={80}
+          />
         </div>
       </div>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import { getProductDetails } from "@/services/products";
 import Image from "next/image";
+import { Suspense } from "react";
 import { e2p, sp } from "@/utils/numbers";
 import ToomaanIcon from "@/components/icons/ToomaanIcon";
 import { FiPlus } from "react-icons/fi";
@@ -16,6 +17,8 @@ import { removeExtra, shortText } from "@/utils/shortText";
 import ProductImages from "@/components/modules/productPage/ProductImages";
 import { RelatedProducts } from "@/components/modules/productPage/RelatedProducts";
 import { ProductStages } from "@/components/modules/productPage/ProductStages";
+import MobileMenu from "@/components/layout/mobileMenu";
+import { ProductSectionSkeleton } from "@/components/skeleton";
 
 interface ProductPageProps {
   params: Promise<{
@@ -29,7 +32,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // console.log(slug)
 
   const product = await getProductDetails(slug);
-  console.log(product);
+  // console.log(product);
   const productCategory = product.categories[0].name;
 
   const names = ["برند", "رنگ", "پردازنده", "سری پردازنده"];
@@ -41,7 +44,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <>
       {/* Breadcrumb */}
-      <div className="mx-[2.5%] my-6 flex flex-wrap items-center gap-2 text-xs text-gray-500 sm:my-10 sm:text-sm">
+      <div className="mx-[2.5%] my-6 flex flex-wrap items-center gap-2 text-xs
+       text-gray-500 sm:my-10 sm:text-sm">
         <Link href="/" className="hover:text-orange-500">
           خانه
         </Link>
@@ -62,7 +66,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {/* عکس های محصول */}
         <ProductImages product={product} />
         {/* ستون دوم */}
-        <div className="flex w-full flex-col justify-start items-start rounded-lg border-l-2 border-dashed border-gray-300 p-2 sm:p-3 lg:w-md">
+        <div className="flex w-full flex-col justify-start items-start rounded-lg md:border-l-2
+         md:border-dashed md:border-gray-300 p-2 sm:p-3 lg:w-md">
           <p className="text-base font-bold sm:text-lg">
             {removeExtra(product.name)}
           </p>
@@ -170,7 +175,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   {sp(product.prices.price)} <ToomaanIcon />
                 </span>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4 max-md:hidden">
                 <button
                   className="flex items-center justify-center gap-2 rounded-md
                          bg-black px-2 py-2 text-xs text-white transition duration-300 
@@ -195,7 +200,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <ProductStages product={product} />
 
       {/* Related Products component */}
-      <RelatedProducts product={product} />
+      <Suspense fallback={<ProductSectionSkeleton />}>
+        <RelatedProducts product={product} />
+      </Suspense>
+
+      <MobileMenu
+        cart={
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-xl
+             bg-black px-4 py-3 text-sm font-bold text-white transition duration-300
+             hover:bg-orange-600 active:scale-[0.99] focus-visible:outline-2
+             focus-visible:outline-offset-2 focus-visible:outline-orange-500"
+          >
+            افزودن به سبد خرید <FiPlus size={18} />
+          </button>
+        }
+      />
     </>
   );
 }

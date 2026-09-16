@@ -1,4 +1,4 @@
-import { getMainCategories } from "@/services/categories";
+import { getAllCategories, getCategoriesWithId } from "@/services/categories";
 import { HiOutlineViewGrid } from "react-icons/hi";
 import Image from "next/image";
 import { shortText } from "@/utils/shortText";
@@ -21,9 +21,12 @@ export async function Categories() {
     "accessory",
     "laptop",
   ];
-  const ids = [55, 85, 57, 58, 59, 215];
-  const data = await getMainCategories(ids);
+  const ids = [55, 85, 57, 58, 59, 215, 352];
+  const data = await getCategoriesWithId(ids);
   console.log(data);
+
+  const allCategories = await getAllCategories()
+  console.log("all categories", allCategories)
 
   return (
     <div className="w-full my-15">

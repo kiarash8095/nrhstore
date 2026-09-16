@@ -20,7 +20,8 @@ export default function ProductImages({ product }: ProductImagesProps) {
     setProductImage(src);
   };
   return (
-    <div className="flex w-full flex-col items-center rounded-lg border-l-2 border-dashed border-gray-300 p-2 sm:p-3 lg:w-md lg:max-w-md">
+    <div className="flex w-full flex-col items-center rounded-lg md:border-l-2 md:border-dashed
+     md:border-gray-300 p-2 sm:p-3 lg:w-md lg:max-w-md">
       <Image
         className="rounded-lg bg-gray-400 object-cover transition duration-300"
         src={productImage}

@@ -82,6 +82,29 @@ export const getMainCategories = cache(
   }
 );
 
+export const getCategoriesWithId = async(ids:number[]): Promise<Category[]> =>
+{
+  const params = new URLSearchParams({
+    include: ids.join(',')
+  })
+
+  try{
+    const response = await wcFetch<Category[]>(`/products/categories?${params.toString()}`, {
+      next: {
+        revalidate: process.env.NEXT_PUBLIC_BASE_URL === 'production' ? 3600 : 60,
+        tags: ['categories-with-id']
+      }
+    })
+    return response
+
+  }catch(error) {
+    console.log("Error occured in getting categories with ids ", error)
+    return []
+  }
+
+
+}
+
 
 export const prefetchCategories = async (ids: number[], slugs?: string[]) => {
   // این تابع برای استفاده در layout یا page برای prefetch کردن

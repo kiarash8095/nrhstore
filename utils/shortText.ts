@@ -7,7 +7,7 @@ export function shortText(
     } ={}
 ): string{
 
-    const {wordsCount=5, suffix="...", minLength=10} = options
+    const {wordsCount=9, suffix="...", minLength=10} = options
 
     if(!text || text.trim().length === 0) {
         return"";

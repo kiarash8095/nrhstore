@@ -46,6 +46,17 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-shimmer: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+/* درخشش اسکلتون‌ها؛ مطابق جهت خواندن RTL سایت از راست به چپ حرکت می‌کند */
+@keyframes skeleton-shimmer {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
 }
 
 :root {

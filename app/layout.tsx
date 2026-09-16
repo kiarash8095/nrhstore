@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import { YekanBakh } from "@/lib/fonts";
 import "./globals.css";
-import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import { cn } from "@/lib/utils";
 import ReactQueryProvider from "@/providers/ReactQueryProvider";
-import { getMainCategories, prefetchCategories } from "@/services/categories";
+import { HeaderWithCategories } from "@/components/layout/headerWithCategories";
 import MobileMenu from "@/components/layout/mobileMenu";
 import { PageTransition } from "@/components/animation/pageTransition";
+import { HeaderSkeleton } from "@/components/skeleton";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -21,30 +22,18 @@ export const metadata: Metadata = {
   description: "|",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const slugs = ["edari", "network", "printer", "hardware", "accessory"];
-  const ids = [365, 55, 59, 57, 58];
-  
-  // const queryClient = getQueryClient()
-  const categories = await prefetchCategories(ids, slugs);
-
-  // await queryClient.prefetchQuery({
-  //   queryKey: ["sub-categories", ids],
-  //   queryFn: () => getSubCategories(ids)
-  // })
-
-
-
   return (
     <html
       lang="fa"
       dir="rtl"
       className={cn(
         "h-full w-full",
+        "scroll-smooth",
 
         "antialiased",
         // geistSans.variable,
@@ -58,11 +47,15 @@ export default async function RootLayout({
         <ReactQueryProvider>
           {/* <HydrationBoundary state={dehydrate(queryClient)}> */}
           <PageTransition>
-          <Header categories={categories}/>
+            {/* هدر داده‌محور است؛ با مرز Suspense جدا، پوسته‌ی سایت بدون انتظار برای دسته‌ها رندر می‌شود */}
+            <Suspense fallback={<HeaderSkeleton />}>
+              <HeaderWithCategories />
+            </Suspense>
 
-          {children}
-          <MobileMenu />
-          <Footer />
+            {children}
+            <MobileMenu />
+
+            <Footer />
           </PageTransition>
           {/* </HydrationBoundary> */}
         </ReactQueryProvider>

@@ -8,7 +8,7 @@ import { IoTimerOutline } from "react-icons/io5";
 import { LuCrown } from "react-icons/lu";
 import { LuCircleCheckBig } from "react-icons/lu";
 import { FaChevronLeft } from "react-icons/fa";
-import { Products } from "@/types/products";
+import { Products } from "@/types/products-types";
 
 interface ShopDetailsProps {
   product: Products;

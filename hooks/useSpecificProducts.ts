@@ -1,5 +1,5 @@
 import { getSpecificProducts } from "@/services/getSpecificProducts";
-import { Products } from "@/types/products";
+import { Products } from "@/types/products-types";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Categories } from "@/components/modules/mainPage/Categories";
 import { EdariProducts } from "@/components/modules/mainPage/EdariProducts";
@@ -16,12 +16,11 @@ import { JanebiProducts } from "@/components/modules/mainPage/JanebiProducts";
 //     {id:55, name:'janebi', Component:JanebiProducts},
 // ]
 
-export function useSpecificProducts(id:number, slug:string)
-{
-    const data = useQuery<Products[]>({
-        queryKey: ["specific-products", slug],
-        queryFn: () => getSpecificProducts(id),
-    })
+export function useSpecificProducts(id: number, slug: string) {
+  const data = useQuery<Products[]>({
+    queryKey: ["specific-products", slug],
+    queryFn: () => getSpecificProducts(id),
+  });
 
-    return data
+  return data;
 }

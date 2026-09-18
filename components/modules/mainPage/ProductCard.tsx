@@ -8,7 +8,7 @@ import ToomaanIcon from "@/components/icons/ToomaanIcon";
 import { Card, CardContent } from "@/components/ui/card";
 import { sp } from "@/utils/numbers";
 import { shortText } from "@/utils/shortText";
-import type { Products } from "@/types/products";
+import type { Products } from "@/types/products-types";
 
 interface ProductCardProps {
   product: Products;
@@ -18,7 +18,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const image = product.images[0]?.src || "/placeholder.png";
 
   return (
-    <Card className="group h-full w-[90%] mx-auto overflow-hidden rounded-2xl border border-gray-100 bg-white py-0 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-orange-200 hover:shadow-xl">
+    <Card
+      className="group h-full w-[90%] mx-auto overflow-hidden rounded-2xl
+     border border-gray-100 bg-white py-0 shadow-sm transition duration-300
+      hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg"
+    >
       <Link
         href={`/products/${product.slug}`}
         className="flex h-full min-h-[420px] flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:min-h-[450px]"
@@ -37,7 +41,7 @@ export function ProductCard({ product }: ProductCardProps) {
             </span>
           </div>
 
-          <div className="relative my-3 flex aspect-square w-[90%] items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-4 sm:my-4">
+          <div className="relative my-3 flex aspect-square w-[90%] mx-auto items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-4 sm:my-4">
             <Image
               src={image}
               width={200}
@@ -58,8 +62,10 @@ export function ProductCard({ product }: ProductCardProps) {
               </span>
               <ToomaanIcon />
             </div>
-            <span className="flex whitespace-nowrap items-center rounded-lg bg-gray-900 px-5 py-2 text-xs
-             font-bold text-white transition group-hover:bg-orange-500 sm:px-4 sm:text-sm max-md:w-[85%] max-md:justify-center max-md:py-4">
+            <span
+              className="flex whitespace-nowrap items-center rounded-lg bg-gray-900 px-5 py-2 text-xs
+             font-bold text-white transition group-hover:bg-orange-500 sm:px-4 sm:text-sm max-md:w-[85%] max-md:justify-center max-md:py-4"
+            >
               مشاهده محصول
               <MdAddShoppingCart className="mr-1 inline-block text-lg" />
             </span>

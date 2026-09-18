@@ -1,3 +1,4 @@
+export { CategoriesGridSkeleton } from "./CategoriesGridSkeleton";
 export { CategoriesSkeleton } from "./CategoriesSkeleton";
 export { CategoryPageSkeleton } from "./CategoryPageSkeleton";
 export { HeaderSkeleton } from "./HeaderSkeleton";

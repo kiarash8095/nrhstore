@@ -11,14 +11,11 @@ import MobileMenu from "@/components/layout/mobileMenu";
 import { PageTransition } from "@/components/animation/pageTransition";
 import { HeaderSkeleton } from "@/components/skeleton";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+// const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "نوین رایانه همدان",
-  icons: {
-    icon: "/favicon.png?v=2",
-    shortcut: "/favicon.png",
-  },
+  // آیکون‌ها به‌صورت خودکار از فایل‌های app/icon.png و app/apple-icon.png خوانده می‌شوند
   description: "|",
 };
 
@@ -43,7 +40,7 @@ export default function RootLayout({
         // inter.variable,
       )}
     >
-      <body className="min-h-full w-full  flex flex-col overflow-x-hidden bg-[#f7f8fa]">
+      <body className="min-h-full w-full flex flex-col overflow-x-hidden bg-[#f7f8fa]">
         <ReactQueryProvider>
           {/* <HydrationBoundary state={dehydrate(queryClient)}> */}
           <PageTransition>

@@ -6,6 +6,8 @@ export interface Category {
     slug: string;
     parent: number;
     permalink: Url;
+    /** تعداد محصولات دسته؛ در پاسخ Store API همیشه هست ولی ممکن است در برخی فیلترها نیاید */
+    count?: number;
     image: {
         id: number;
         src: string;

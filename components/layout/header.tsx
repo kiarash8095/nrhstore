@@ -14,8 +14,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { getSearchResult } from "@/services/searchInputHeader";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Category, SubCategory } from "@/types/category";
-import { SearchResult } from "@/types/search-result";
+import { Category, SubCategory } from "@/types/category-types";
+import { SearchResult } from "@/types/search-result-types";
 import { getSubCategories } from "@/services/categories";
 import { sp } from "@/utils/numbers";
 import { MainMenuSkeleton, SearchResultsSkeleton } from "../skeleton";
@@ -124,7 +124,7 @@ export default function Header({ categories }: HeaderProps) {
     <>
       <header
         className="sticky top-0 z-40 border-b border-gray-100
-       bg-white/90 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-sm"
+       bg-white/90 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-sm w-full"
       >
         <div
           className="mx-auto flex w-[90%] max-w-[1400px] items-center
@@ -233,7 +233,6 @@ export default function Header({ categories }: HeaderProps) {
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-
             <div className="flex items-center gap-2 max-md:hidden">
               <div className="relative group">
                 <button
@@ -485,7 +484,9 @@ export default function Header({ categories }: HeaderProps) {
                           <span className="flex-1">{category.name}</span>
                           <IoIosArrowBack
                             size={14}
-                            className={isActive ? "text-orange-400" : "text-gray-300"}
+                            className={
+                              isActive ? "text-orange-400" : "text-gray-300"
+                            }
                           />
                         </Link>
                       );
@@ -529,7 +530,10 @@ export default function Header({ categories }: HeaderProps) {
                   </div>
 
                   {/* ستون سوم: رزرو شده — فعلاً خالی تا ساختار ستون‌ها بهم نخورد */}
-                  <div className="hidden min-h-[240px] lg:block" aria-hidden="true" />
+                  <div
+                    className="hidden min-h-[240px] lg:block"
+                    aria-hidden="true"
+                  />
                 </div>
 
                 {/* دکمه کشیده پایین مگامنو */}

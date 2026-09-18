@@ -13,17 +13,17 @@ import {
 } from "@/components/ui/carousel";
 
 export async function Categories() {
-  const slugs = [
-    "edari",
-    "network",
-    "printer",
-    "hardware",
-    "accessory",
-    "laptop",
-  ];
+  // const slugs = [
+  //   "edari",
+  //   "network",
+  //   "printer",
+  //   "hardware",
+  //   "accessory",
+  //   "laptop",
+  // ];
   const ids = [55, 85, 57, 58, 59, 215, 352];
   const data = await getCategoriesWithId(ids);
-  console.log(data);
+  // console.log(data);
 
   const allCategories = await getAllCategories()
   console.log("all categories", allCategories)
@@ -36,7 +36,12 @@ export async function Categories() {
         </div>
         <div className="flex flex-col items-start mr-3">
           <p className="text-2xl font-bold">دسته ها</p>
-          <span className="font-thin text-sm text-gray-500">نمایش همه</span>
+          <Link
+            href="/categories"
+            className="font-thin text-sm text-gray-500 transition hover:text-orange-500"
+          >
+            نمایش همه
+          </Link>
         </div>
       </div>
 

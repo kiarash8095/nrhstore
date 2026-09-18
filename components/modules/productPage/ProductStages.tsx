@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaAngleDown, FaAngleUp } from "react-icons/fa";
 import { removeTagP } from "@/utils/shortText";
-import { Products } from "@/types/products";
+import { Products } from "@/types/products-types";
 import { RatingSection } from "@/components/modules/productPage/RatingSection";
 import { ShopDetails } from "@/components/modules/productPage/ShopDetails";
 

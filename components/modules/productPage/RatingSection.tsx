@@ -2,7 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Rating } from "@/components/reui/rating";
 import { e2p } from "@/utils/numbers";
-import { Products } from "@/types/products";
+import { Products } from "@/types/products-types";
 
 interface RatingSectionProps {
   product: Products;
@@ -33,6 +33,7 @@ const distribution = [
 ];
 
 export function RatingSection({ product }: RatingSectionProps) {
+  console.log(product)
   return (
     <div className="mx-auto w-full max-w-xs space-y-3 sm:space-y-4">
       <div className="flex flex-col items-center gap-2">

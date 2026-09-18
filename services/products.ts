@@ -1,16 +1,14 @@
-import { Products } from "@/types/products";
+import { Products } from "@/types/products-types";
 import api from "./api";
 
+export const getProducts = async () => {
+  const { data } = await api.get("/products");
 
-export const getProducts = async() => {
-    const {data} = await api.get("/products")
+  return data;
+};
 
-    return data
-}
+export const getProductDetails = async (slug: string) => {
+  const { data } = await api.get<Products>(`/products/${slug}`);
 
-export const getProductDetails = async(slug: string) => 
-{
-    const {data} = await api.get<Products>(`/products/${slug}`)
-
-    return data
-}
+  return data;
+};

@@ -1,7 +1,6 @@
-import { Products } from "@/types/products"
-import api from "./api"
-import { wcFetch } from "./client"
-
+import { Products } from "@/types/products-types";
+import api from "./api";
+import { wcFetch } from "./client";
 
 // export const getSpecificProducts= async(id:number) =>
 // {
@@ -26,16 +25,17 @@ import { wcFetch } from "./client"
 
 //  }
 
-export const getSpecificProducts = async(id:number, limit:number = 10): Promise<Products[]> =>
-{
-    const params = new URLSearchParams({
-        category: String(id),
-        per_page: String(limit),
-
-    })
-    return wcFetch<Products[]>(`/products?${params.toString()}`, {
-        next: {
-            revalidate: 300,
-        }
-    })
-}
+export const getSpecificProducts = async (
+  id: number,
+  limit: number = 10,
+): Promise<Products[]> => {
+  const params = new URLSearchParams({
+    category: String(id),
+    per_page: String(limit),
+  });
+  return wcFetch<Products[]>(`/products?${params.toString()}`, {
+    next: {
+      revalidate: 300,
+    },
+  });
+};

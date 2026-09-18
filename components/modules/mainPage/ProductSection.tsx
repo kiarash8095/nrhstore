@@ -8,7 +8,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { Products } from "@/types/products";
+import type { Products } from "@/types/products-types";
 import { ProductCard } from "./ProductCard";
 
 interface ProductSectionProps {
@@ -33,8 +33,10 @@ export function ProductSection({
     >
       <div className="mb-5 flex items-center justify-between gap-4 sm:mb-7">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center
-           rounded-2xl border border-orange-100 bg-orange-50 text-orange-500 sm:h-14 sm:w-14">
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center
+           rounded-2xl border border-orange-100 bg-orange-50 text-orange-500 sm:h-14 sm:w-14"
+          >
             <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
           <div className="min-w-0">
@@ -57,7 +59,7 @@ export function ProductSection({
       {products.length > 0 ? (
         <Carousel
           opts={{ align: "center", direction: "rtl" }}
-          className="w-full px-1 py-2 my-2 sm:px-0 mx-auto"
+          className="w-full px-1 py-4 my-2 sm:px-0 mx-auto"
         >
           <CarouselContent className="-ms-3 py-3 items-center">
             {products.map((product) => (

@@ -6,6 +6,7 @@ import ToomaanIcon from "@/components/icons/ToomaanIcon";
 import { FiPlus } from "react-icons/fi";
 import { FiHeart } from "react-icons/fi";
 import { FiStar } from "react-icons/fi";
+import { FaCartPlus } from "react-icons/fa";
 import { BiHappyBeaming } from "react-icons/bi";
 import { IoTimerOutline } from "react-icons/io5";
 import { LuCrown } from "react-icons/lu";
@@ -208,12 +209,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
         cart={
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl
+            className="flex w-full items-center justify-between gap-2 rounded-xl cursor-pointer
              bg-black px-4 py-3 text-sm font-bold text-white transition duration-300
              hover:bg-orange-600 active:scale-[0.99] focus-visible:outline-2
              focus-visible:outline-offset-2 focus-visible:outline-orange-500"
           >
-            افزودن به سبد خرید <FiPlus size={18} />
+            <span className="flex gap-1 items-center flex-nowrap">
+               افزودن به سبد خرید <FaCartPlus size={18} />
+            </span>
+           
+            <span className="flex items-center gap-1 text-sm font-normal sm:text-lg bg-gray-800
+             rounded-sm px-3 py-1">
+                  {sp(product.prices.price)} <ToomaanIcon />
+              </span>
           </button>
         }
       />

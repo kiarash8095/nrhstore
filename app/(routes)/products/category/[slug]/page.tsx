@@ -4,8 +4,8 @@ import Link from "next/link";
 import { getSpecificProducts } from "@/services/getSpecificProducts";
 import { getSpecificCategory } from "@/services/getSpecificCategory";
 
-import { Products } from "@/types/products";
-import { Category } from "@/types/category";
+import { Products } from "@/types/products-types";
+import { Category } from "@/types/category-types";
 import { sp } from "@/utils/numbers";
 
 const CATEGORY_MAP: Record<string, number> = {
@@ -22,9 +22,7 @@ interface CategoryPageProps {
   }>;
 }
 
-export default async function CategoryPage({
-  params,
-}: CategoryPageProps) {
+export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
 
   const categoryId = CATEGORY_MAP[slug];
@@ -33,9 +31,7 @@ export default async function CategoryPage({
   if (!categoryId) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold text-red-500">
-          دسته‌بندی یافت نشد
-        </h1>
+        <h1 className="text-2xl font-bold text-red-500">دسته‌بندی یافت نشد</h1>
 
         <Link
           href="/"
@@ -57,27 +53,19 @@ export default async function CategoryPage({
     <div className="container mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <Link
-          href="/"
-          className="hover:text-orange-500"
-        >
+        <Link href="/" className="hover:text-orange-500">
           خانه
         </Link>
 
         <span>/</span>
 
-        <Link
-          href="/products"
-          className="hover:text-orange-500"
-        >
+        <Link href="/products" className="hover:text-orange-500">
           محصولات
         </Link>
 
         <span>/</span>
 
-        <span className="text-orange-500">
-          {category?.name || slug}
-        </span>
+        <span className="text-orange-500">{category?.name || slug}</span>
       </div>
 
       {/* Category Header */}
@@ -85,11 +73,8 @@ export default async function CategoryPage({
         <div className="flex items-center gap-4 mb-8 p-4 bg-orange-50 rounded-xl">
           <div className="relative w-16 h-16 shrink-0">
             <Image
-              src={
-                category.image?.src ||
-                "/default-category.png"
-              }
               alt={category.name}
+              src={category.image?.src || "/default-category.png"}
               fill
               sizes="64px"
               className="object-cover rounded-lg"
@@ -97,13 +82,9 @@ export default async function CategoryPage({
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold">
-              {category.name}
-            </h1>
+            <h1 className="text-2xl font-bold">{category.name}</h1>
 
-            <span className="text-gray-500">
-              {products.length} محصول
-            </span>
+            <span className="text-gray-500">{products.length} محصول</span>
           </div>
         </div>
       )}
@@ -121,10 +102,7 @@ export default async function CategoryPage({
                 {/* Product Image */}
                 <div className="relative h-48 bg-gray-100">
                   <Image
-                    src={
-                      product.images?.[0]?.src ||
-                      "/default-product.png"
-                    }
+                    src={product.images?.[0]?.src || "/default-product.png"}
                     alt={product.name}
                     fill
                     sizes="

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "AUTH-COOKIE: delayed guest session response must preserve a newer login cookie",
+    "status": "race-confirmed",
+    "message": "A guest GET sent before login returns Set-Cookie nrh_auth=\"\"; Max-Age=0 after the successful login response.\n\ntrue !== false\n"
+  },
+  {
+    "id": "AUTH-COOKIE-IDENTITY: delayed valid read must not restore the previous account cookie",
+    "status": "race-confirmed",
+    "message": "A valid GET for account A still rewrites its old authenticated cookie after a newer login to account B.\n\ntrue !== false\n"
+  },
+  {
+    "id": "CART-BOOTSTRAP: concurrent cookie-less read must not replace a cart containing the new item",
+    "status": "race-confirmed",
+    "message": "Two initial requests create different Cart-Tokens; the late empty read overwrites the cookie of the cart containing the added product.\n\nfalse !== true\n"
+  },
+  {
+    "id": "BANNERS-SAVE: competing saves must accept exactly one revision",
+    "status": "passed",
+    "evidence": "Exclusive file creation and revision check preserve the winning save; test data is isolated."
+  }
+]

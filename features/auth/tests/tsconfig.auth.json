@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "../../../next-env.d.ts",
+    "../**/*.ts",
+    "../**/*.tsx",
+    "../../../app/api/auth/**/*.ts",
+    "../../../app/(account)/dashboard/page.tsx",
+    "../../../proxy.ts"
+  ],
+  "exclude": [
+    "../../../node_modules"
+  ]
+}

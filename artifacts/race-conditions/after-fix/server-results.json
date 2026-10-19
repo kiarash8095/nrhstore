@@ -1,0 +1,28 @@
+[
+  {
+    "id": "AUTH-COOKIE: delayed guest session response must preserve a newer login cookie",
+    "status": "passed"
+  },
+  {
+    "id": "AUTH-COOKIE-IDENTITY: delayed valid read must not restore the previous account cookie",
+    "status": "passed"
+  },
+  {
+    "id": "CART-BOOTSTRAP: concurrent cookie-less read must not replace a cart containing the new item",
+    "status": "passed",
+    "evidence": "A competing cookie-less write is rejected before WooCommerce; the initialized session is reused."
+  },
+  {
+    "id": "CART-WRITES: overlapping requests must preserve both WooCommerce increments",
+    "status": "passed",
+    "evidence": {
+      "finalQuantity": 3,
+      "maximumConcurrentUpstreamWrites": 1
+    }
+  },
+  {
+    "id": "BANNERS-SAVE: competing saves must accept exactly one revision",
+    "status": "passed",
+    "evidence": "Exclusive file creation and revision check preserve the winning save; test data is isolated."
+  }
+]

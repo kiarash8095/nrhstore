@@ -1,0 +1,108 @@
+[
+  {
+    "route": "/",
+    "finalPath": "/",
+    "status": 200,
+    "h1": [],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/products",
+    "finalPath": "/products",
+    "status": 200,
+    "h1": [
+      "فروشگاه نوین رایانه همدان"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/categories",
+    "finalPath": "/categories",
+    "status": 200,
+    "h1": [
+      "دسته‌بندی‌ها"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/products/category/laptop",
+    "finalPath": "/products/category/laptop",
+    "status": 200,
+    "h1": [
+      "لپ‌تاپ"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/cart",
+    "finalPath": "/cart",
+    "status": 200,
+    "h1": [
+      "سبد خرید شما"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/checkout",
+    "finalPath": "/checkout",
+    "status": 200,
+    "h1": [
+      "تسویه‌حساب"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/contact-us",
+    "finalPath": "/contact-us",
+    "status": 200,
+    "h1": [
+      "تماس با نوین رایانه همدان"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/dashboard",
+    "finalPath": "/",
+    "status": 200,
+    "h1": [],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/banners-admin",
+    "finalPath": "/banners-admin/login",
+    "status": 200,
+    "h1": [
+      "ورود به مدیریت بنرها"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/banners-admin/login",
+    "finalPath": "/banners-admin/login",
+    "status": 200,
+    "h1": [
+      "ورود به مدیریت بنرها"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  },
+  {
+    "route": "/this-route-must-not-exist-audit",
+    "finalPath": "/this-route-must-not-exist-audit",
+    "status": 404,
+    "h1": [
+      "صفحه مورد نظر پیدا نشد"
+    ],
+    "runtimeErrors": [],
+    "passed": true
+  }
+]

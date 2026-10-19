@@ -1,6 +1,6 @@
 "use client";
 
-import { ThreeDots, Triangle } from "react-loader-spinner";
+import { ThreeDots,Triangle } from "react-loader-spinner";
 
 import { cn } from "@/lib/utils";
 

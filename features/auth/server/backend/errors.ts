@@ -40,7 +40,10 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   forbidden_origin: "درخواست از مبدأ معتبر ارسال نشده است.",
   backend_unavailable:
     "ارتباط با سرور برقرار نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.",
+<<<<<<< HEAD
   configuration_error: "تنظیمات سرویس ورود کامل نیست. لطفاً با پشتیبانی تماس بگیرید.",
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
   unexpected_error: "خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید.",
 };
 
@@ -59,7 +62,10 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   session_expired: 401,
   forbidden_origin: 403,
   backend_unavailable: 503,
+<<<<<<< HEAD
   configuration_error: 503,
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
   unexpected_error: 500,
 };
 

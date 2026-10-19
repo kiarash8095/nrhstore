@@ -64,7 +64,11 @@ export const emailRecoveryResponseSchema = z.object({ ok: z.literal(true) });
 export const authErrorCodeSchema = z.enum([
   "invalid_input", "phone_exists", "email_exists", "phone_not_found", "otp_invalid", "otp_expired",
   "otp_too_many_attempts", "rate_limited", "invalid_credentials", "account_disabled",
+<<<<<<< HEAD
   "session_expired", "forbidden_origin", "backend_unavailable", "configuration_error", "unexpected_error",
+=======
+  "session_expired", "forbidden_origin", "backend_unavailable", "unexpected_error",
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 ]);
 export const authErrorResponseSchema = z.object({
   error: z.object({ code: authErrorCodeSchema, message: z.string().min(1), fields: z.record(z.string(), z.string()).optional() }),

@@ -4,7 +4,10 @@ import { cookies } from "next/headers";
 import type { NextRequest,NextResponse } from "next/server";
 import { createCipheriv,createDecipheriv,createHash,randomBytes,randomUUID } from "node:crypto";
 import { getAuthConfig,getSessionCookieName } from "./config";
+<<<<<<< HEAD
 import { getAuthSessionSecret } from "@/lib/server/runtime-config.cjs";
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 
 export type CookieJar = Record<string, string>;
 const SESSION_AAD = Buffer.from("nrh-auth-session-v1");
@@ -19,7 +22,12 @@ export function getSessionId(jar: CookieJar): string | null {
 }
 
 function sessionKey() {
+<<<<<<< HEAD
   const secret = getAuthSessionSecret();
+=======
+  const secret = process.env.AUTH_SESSION_SECRET;
+  if (!secret || secret.length < 32) throw new Error("AUTH_SESSION_SECRET must contain at least 32 characters");
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
   return createHash("sha256").update(secret).digest();
 }
 

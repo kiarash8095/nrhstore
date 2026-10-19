@@ -237,6 +237,7 @@ test('server checkout errors never expose PHP stack traces or server paths', asy
   const text = await response.text();
   assert.equal(response.status, 502); assert.equal(text.includes('SECRET'), false); assert.equal(text.includes('/home/'), false);
 });
+<<<<<<< HEAD
 
 test('missing authentication configuration prevents a broken cart session before contacting WooCommerce', async () => {
   const secret = process.env.AUTH_SESSION_SECRET;
@@ -253,3 +254,5 @@ test('missing authentication configuration prevents a broken cart session before
     assert.ok(!JSON.stringify(data).includes('AUTH_SESSION_SECRET'));
   } finally { process.env.AUTH_SESSION_SECRET = secret; }
 });
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6

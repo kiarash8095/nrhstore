@@ -3,7 +3,10 @@ import "server-only";
 import type { z } from "zod";
 
 import { consumeRateLimit } from "@/lib/server/rate-limit";
+<<<<<<< HEAD
 import { ConfigurationError, getAuthSessionSecret } from "@/lib/server/runtime-config.cjs";
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 import type { AuthResultDto } from "../contracts";
 import { AUTH_ERROR_MESSAGES,AuthBackendError } from "./backend/errors";
 import { applyJar,type CookieJar } from "./cookies";
@@ -27,10 +30,13 @@ tooManyRequests,
  *   3. نگاشت خطاها به پاسخ فارسی امن (بدون لو دادن پیام خام وردپرس)
  */
 export function toErrorResponse(error: unknown, context: string): NextResponse {
+<<<<<<< HEAD
   if (error instanceof ConfigurationError) {
     console.error(`[auth:${context}] Configuration error:`, error.message);
     return jsonAuthError("configuration_error", AUTH_ERROR_MESSAGES.configuration_error, 503);
   }
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
   if (error instanceof AuthBackendError) {
     // خطای ۵xx وردپرس برای ما «در دسترس نبودن» است، نه پیام خام
     if (error.status >= 500) {
@@ -65,7 +71,10 @@ export function authRoute<T>(options: {
     if (!body.ok) return body.response;
 
     try {
+<<<<<<< HEAD
       getAuthSessionSecret();
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
       return await options.handler(body.data, request);
     } catch (error) {
       return toErrorResponse(error, options.context);
@@ -84,7 +93,10 @@ export function authCookieRoute(options: {
     if (trafficLimit) return trafficLimit;
 
     try {
+<<<<<<< HEAD
       getAuthSessionSecret();
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
       return await options.handler(request);
     } catch (error) {
       return toErrorResponse(error, options.context);

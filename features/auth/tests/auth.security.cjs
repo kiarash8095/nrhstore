@@ -314,6 +314,7 @@ test("email-only users remain valid without fabricating a phone or user ID", asy
     return authAdapter.login({ identifier: "customer-no-session", password: "password" });
   }));
 });
+<<<<<<< HEAD
 
 test("missing session configuration rejects OTP before sending SMS and returns a safe actionable status", async () => {
   const secret = process.env.AUTH_SESSION_SECRET;
@@ -330,3 +331,5 @@ test("missing session configuration rejects OTP before sending SMS and returns a
     assert.equal(session.status, 503, "A configuration failure must not masquerade as an expired session");
   } finally { process.env.AUTH_SESSION_SECRET = secret; }
 });
+=======
+>>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6

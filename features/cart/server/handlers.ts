@@ -5,10 +5,7 @@ import { z } from 'zod';
 import { getCartAuthContext } from '@/features/auth/server';
 import { getStoreApiUrl } from '@/lib/wordpress/config';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
-<<<<<<< HEAD
 import { ConfigurationError } from '@/lib/server/runtime-config.cjs';
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 import { addItemSchema, updateItemSchema, itemKeySchema, couponSchema, customerSchema, shippingSchema } from '../contracts';
 import type { WooCommerceCart } from '../types/woocommerce.types';
 import { cartTokenIdentity, CartLockBusyError, withCartLocks } from './cart-lock';
@@ -148,13 +145,10 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
         return finish(json({ ...cart, account_sync_pending: pending }));
       });
     } catch (error) {
-<<<<<<< HEAD
       if (error instanceof ConfigurationError) {
         console.error('[cart] Configuration error:', error.message);
         return json({ code: 'configuration_error', message: 'تنظیمات سرویس فروشگاه کامل نیست. لطفاً با پشتیبانی تماس بگیرید.' }, 503);
       }
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
       if (error instanceof CartLockBusyError) return json({ code: 'cart_busy', message: error.message }, 409);
       if (error instanceof CartError) return finish(json({ code: error.code, message: error.message, ...(error.cart ? { data: { cart: { ...error.cart, account_sync_pending: pending } } } : {}) }, error.status));
       return finish(json({ code: 'cart_unavailable', message: 'دریافت سبد یا نشست حساب ممکن نشد. دوباره تلاش کنید.' }, 502));

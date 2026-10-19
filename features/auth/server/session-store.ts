@@ -9,14 +9,10 @@ import { getSessionId,type CookieJar } from "./cookies";
 
 // Persistent revocations for a single Node server. No WordPress credentials are stored here.
 function revokedPath(id: string) {
-<<<<<<< HEAD
   const directory = process.env.AUTH_SESSION_DATA_DIR
     ? path.resolve(/* turbopackIgnore: true */ process.env.AUTH_SESSION_DATA_DIR)
     : path.join(process.cwd(), "data", "auth");
   return path.join(directory, "revoked", `${id}.json`);
-=======
-  return path.join(path.resolve(process.env.AUTH_SESSION_DATA_DIR || "data/auth"), "revoked", `${id}.json`);
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 }
 
 export async function isSessionRevoked(jar: CookieJar): Promise<boolean> {

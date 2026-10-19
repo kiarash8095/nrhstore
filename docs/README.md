@@ -20,10 +20,7 @@
 | ۱۲ | [رابط کاربری و تعامل](D:/Projects2/nrh_store_nextjs/docs/ui-interactions-fa.md) | فونت، RTL، دیالوگ، carousel، زوم و انیمیشن |
 | ۱۳ | [سئو و مسیرها](D:/Projects2/nrh_store_nextjs/docs/seo-routing-fa.md) | canonical، metadata، sitemap، robots و schema |
 | ۱۴ | [تست، عیب‌یابی و استقرار](D:/Projects2/nrh_store_nextjs/docs/testing-deployment-fa.md) | اجرای بررسی‌ها، تنظیم محیط و محدودیت‌های انتشار |
-<<<<<<< HEAD
 | ۱۵ | [راه‌اندازی و آمادگی production](D:/Projects2/nrh_store_nextjs/docs/production-readiness-fa.md) | نصب روی دستگاه تازه، کلید ثابت، بررسی اتصال و شواهد OTP و سبد واقعی |
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 
 **چطور بخوانم که بتوانم دوباره بسازم؟**
 

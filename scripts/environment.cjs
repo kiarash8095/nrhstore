@@ -4,7 +4,7 @@ const path = require('node:path');
 const { randomBytes, randomUUID } = require('node:crypto');
 const { setTimeout: delay } = require('node:timers/promises');
 const { loadEnvConfig } = require('@next/env');
-const { ConfigurationError, validateRuntimeEnvironment } = require('../lib/server/runtime-config.cjs');
+const { ConfigurationError, validateBuildEnvironment, validateRuntimeEnvironment } = require('../lib/server/runtime-config.cjs');
 
 // Explicit development setup only. Production never invents or rotates secrets.
 async function prepareDevelopmentEnvironment(root) {
@@ -77,12 +77,18 @@ async function checkBackend(config) {
 
 async function main() {
   const root = process.cwd();
-  let production = process.argv.includes('--production') || process.env.NODE_ENV === 'production';
+  const building = process.argv.includes('--build');
+  let production = building || process.argv.includes('--production') || process.env.NODE_ENV === 'production';
   const setup = process.argv.includes('--setup');
   const logger = { info() {}, error() { console.error('[environment] Could not load an environment file. Check its syntax.'); } };
   loadEnvConfig(root, !production, logger);
   production ||= process.env.NODE_ENV === 'production';
   if (production && setup) throw new Error('Automatic environment setup is only allowed for local development.');
+  if (building) {
+    validateBuildEnvironment();
+    console.log('[environment] Build configuration is ready. Private session secrets and writable storage are checked when the server starts.');
+    return;
+  }
   if (setup && !process.env.AUTH_SESSION_SECRET?.trim()) {
     if (await prepareDevelopmentEnvironment(root)) console.log('[environment] Saved a development session key in .env.local. Existing settings were preserved.');
     loadEnvConfig(root, true, logger, true);

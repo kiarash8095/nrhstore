@@ -7,13 +7,9 @@ import { defaultBannerDocument } from "../constants/defaults";
 import { bannerDocumentSchema,uploadFilenamePattern,type BannerDocument,type SiteBanner } from "../schemas/banner.schema";
 
 export function bannerDataDirectory() {
-<<<<<<< HEAD
   return process.env.BANNERS_DATA_DIR
     ? path.resolve(/* turbopackIgnore: true */ process.env.BANNERS_DATA_DIR)
     : path.join(process.cwd(), "data", "banners");
-=======
-  return path.resolve(process.env.BANNERS_DATA_DIR || path.join(process.cwd(), "data", "banners"));
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 }
 
 export function bannerImagePath(filename: string) {

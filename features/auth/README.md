@@ -43,11 +43,8 @@ The implementation follows the installed [Next.js authentication guide](https://
 
 Keep `.env.local` outside Git. It is now ignored and untracked, while the local file remains. Use `.env.example` as the configuration reference.
 
-<<<<<<< HEAD
-`npm run dev` now runs a development preflight: a missing local session secret is generated once and saved privately, existing settings are preserved, and restarts reuse the same key. `npm run setup:env` runs this separately; `npm run doctor` checks configuration, writable storage and the real WordPress/WooCommerce endpoints without sending SMS or adding products. Production build/start require explicit stable secrets and an HTTPS frontend origin and never generate keys. Missing configuration is rejected before sending OTP, with a safe `configuration_error` response instead of a late generic 500.
+`npm run dev` now runs a development preflight: a missing local session secret is generated once and saved privately, existing settings are preserved, and restarts reuse the same key. `npm run setup:env` runs this separately; `npm run doctor` checks configuration, writable storage and the real WordPress/WooCommerce endpoints without sending SMS or adding products. Compilation checks public build settings without requiring private session credentials or writable runtime storage. Production server startup still requires a stable secret and HTTPS frontend origin. Build/start never generate keys. Missing configuration is rejected before sending OTP, with a safe `configuration_error` response instead of a late generic 500.
 
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 ```dotenv
 WP_AUTH_BASE_URL=https://nrhstore.ir/wp-json
 WP_AUTH_NAMESPACE=boom/v1
@@ -66,11 +63,8 @@ This storage and the in-memory request limiter are intended for the current loca
 
 ## Verification
 
-<<<<<<< HEAD
 Fresh real OTP, cookie, authenticated-cart, browser reload and logout verification for 2026-10-19 is recorded in [production readiness](D:/Projects2/nrh_store_nextjs/docs/production-readiness-fa.md). `npm run test:auth:live` is an explicit opt-in live test using `AUTH_LIVE_TEST_PHONE` and an interactively supplied SMS code; it removes only its test item and logs out its test session. It performs no payment or password reset and stores no codes, cookies or contact details in its report.
 
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
 ```bash
 npm run test:auth
 npm run typecheck:auth

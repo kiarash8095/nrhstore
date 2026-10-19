@@ -6,26 +6,20 @@
     "setup:env": "node scripts/environment.cjs --setup",
     "predev": "node scripts/environment.cjs --setup",
     "dev": "next dev",
-    "prebuild": "node scripts/environment.cjs --production",
+    "prebuild": "node scripts/environment.cjs --build",
     "build": "next build",
     "prestart": "node scripts/environment.cjs --production",
     "start": "next start",
-<<<<<<< HEAD
     "doctor": "node scripts/environment.cjs --network",
     "doctor:production": "node scripts/environment.cjs --production --network",
     "test:environment": "node --test tests/environment/*.test.cjs",
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit --incremental false",
     "test:banners": "node features/banners/tests/banners.integration.cjs",
     "test:banners:browser": "node features/banners/tests/banners.browser.cjs",
     "test:banners:public:browser": "node features/banners/tests/banners.public.browser.cjs",
     "test:auth": "node --test features/auth/tests/auth.security.cjs",
-<<<<<<< HEAD
     "test:auth:live": "node features/auth/tests/auth-cart.live.cjs",
-=======
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
     "test:auth:browser": "node features/auth/tests/auth.browser.cjs",
     "test:providers:browser": "node features/auth/tests/providers.browser.cjs",
     "typecheck:auth": "tsc --noEmit -p features/auth/tests/tsconfig.auth.json",

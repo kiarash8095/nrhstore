@@ -131,3 +131,53 @@ test('a stored development key decrypts the same session in a separate Node proc
   assert.equal(second.status, 0, second.stderr);
   assert.equal(second.stdout, 'test-session');
 });
+
+test('build works before runtime secrets or storage are provisioned', async t => {
+  const root = await fixture(t);
+  const result = cli(root, '--build');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Build configuration is ready/);
+  assert.deepEqual(await fs.readdir(root), ['.env.example']);
+  assert.equal(cli(root, '--production').status, 1, 'Production startup must still require a session secret');
+});
+
+test('a local development origin can be built while production startup still requires HTTPS', async t => {
+  const root = await fixture(t);
+  await prepareDevelopmentEnvironment(root);
+  const before = await contents(root);
+  assert.equal(cli(root, '--build').status, 0);
+  const production = cli(root, '--production');
+  assert.equal(production.status, 1);
+  assert.match(production.stderr, /HTTPS is required/);
+  assert.equal(await contents(root), before);
+});
+
+test('build rejects malformed public configuration without revealing its value', async t => {
+  const root = await fixture(t);
+  await fs.writeFile(path.join(root, '.env.local'), 'NEXT_PUBLIC_SITE_URL=https://user:private-password@example.test\n');
+  const result = cli(root, '--build');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /NEXT_PUBLIC_SITE_URL/);
+  assert.ok(!result.stderr.includes('private-password'));
+});
+
+test('Next instrumentation skips runtime credentials only during compilation', async () => {
+  const load = require('../../features/auth/tests/auth-test-loader.cjs');
+  const { register } = load('instrumentation.ts');
+  const names = ['NEXT_RUNTIME', 'NEXT_PHASE', 'NODE_ENV', 'AUTH_SESSION_SECRET', 'NEXT_PUBLIC_SITE_URL'];
+  const original = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.NEXT_RUNTIME = 'nodejs';
+    process.env.NODE_ENV = 'production';
+    process.env.NEXT_PHASE = require('next/constants').PHASE_PRODUCTION_BUILD;
+    delete process.env.AUTH_SESSION_SECRET;
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    await register();
+    process.env.NEXT_PHASE = require('next/constants').PHASE_PRODUCTION_SERVER;
+    await assert.rejects(register(), ConfigurationError);
+  } finally {
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name]; else process.env[name] = original[name];
+    }
+  }
+});

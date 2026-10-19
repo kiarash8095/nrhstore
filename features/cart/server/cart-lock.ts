@@ -33,16 +33,10 @@ export async function withCartLocks<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   if (!identities.length) return operation();
-<<<<<<< HEAD
   // Runtime lock files are persistent host data, not files to bundle with the app.
   const directory = process.env.CART_LOCK_DIR
     ? path.resolve(/* turbopackIgnore: true */ process.env.CART_LOCK_DIR)
     : path.join(process.cwd(), "data", "cart-locks");
-=======
-  const directory = path.resolve(
-    process.env.CART_LOCK_DIR || path.join("data", "cart-locks"),
-  );
->>>>>>> 5ac6dc77aee4b7ce44d07237d793f692485c06b6
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const names = [
     ...new Set(

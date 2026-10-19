@@ -1,0 +1,12 @@
+[
+  {
+    "id": "category-hover-reversed-responses",
+    "status": "passed",
+    "evidence": {
+      "oldCategory": "55",
+      "latestCategory": "365",
+      "staleSubcategoryDidNotReplaceActiveCategory": true
+    },
+    "hydrationErrors": 1
+  }
+]

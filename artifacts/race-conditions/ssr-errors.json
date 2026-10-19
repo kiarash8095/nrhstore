@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "08:36:05.381",
+    "source": "Server",
+    "level": "ERROR",
+    "message": "[browser] \"\\u001b[31mUncaught Error: Switched to client rendering because the server rendering errored:\\n\\nNo QueryClient set, use QueryClientProvider to set one\\u001b[39m\\n\\u001b[31m    at useProductSearch (features\\\\search\\\\hooks\\\\use-product-search.ts:13:83)\\n    at SearchProvider (features\\\\search\\\\components\\\\SearchProvider.tsx:9:34)\\u001b[39m\\n  \\u001b[90m11 |\\u001b[0m   \\u001b[36mconst\\u001b[0m [isInputOpen, setIsInputOpen] = useState(\\u001b[36mfalse\\u001b[0m);\\n  \\u001b[90m12 |\\u001b[0m   \\u001b[36mconst\\u001b[0m debouncedInput = useDebounce(input, \\u001b[35m500\\u001b[0m);\\n\\u001b[31m\\u001b[1m>\\u001b[0m \\u001b[90m13 |\\u001b[0m   \\u001b[36mconst\\u001b[0m { data: searchData = [], isPending: searchLoading, isFetching } = useQuery<\\u001b[33mSearchResult\\u001b[0m[]>({\\n  \\u001b[90m   |\\u001b[0m                                                                                   \\u001b[31m\\u001b[1m^\\u001b[0m\\n  \\u001b[90m14 |\\u001b[0m     queryKey: [\\u001b[32m\\\"get-search-result\\\"\\u001b[0m, debouncedInput],\\n  \\u001b[90m15 |\\u001b[0m     queryFn: () => getSearchResult(debouncedInput),\\n  \\u001b[90m16 |\\u001b[0m     enabled: debouncedInput.trim().length > \\u001b[35m0\\u001b[0m,\""
+  },
+  {
+    "timestamp": "08:36:05.382",
+    "source": "Browser",
+    "level": "ERROR",
+    "message": "\u001b[31mUncaught Error: Switched to client rendering because the server rendering errored:\n\nNo QueryClient set, use QueryClientProvider to set one\u001b[39m\n\u001b[31m    at useProductSearch (features\\search\\hooks\\use-product-search.ts:13:83)\n    at SearchProvider (features\\search\\components\\SearchProvider.tsx:9:34)\u001b[39m\n  \u001b[90m11 |\u001b[0m   \u001b[36mconst\u001b[0m [isInputOpen, setIsInputOpen] = useState(\u001b[36mfalse\u001b[0m);\n  \u001b[90m12 |\u001b[0m   \u001b[36mconst\u001b[0m debouncedInput = useDebounce(input, \u001b[35m500\u001b[0m);\n\u001b[31m\u001b[1m>\u001b[0m \u001b[90m13 |\u001b[0m   \u001b[36mconst\u001b[0m { data: searchData = [], isPending: searchLoading, isFetching } = useQuery<\u001b[33mSearchResult\u001b[0m[]>({\n  \u001b[90m   |\u001b[0m                                                                                   \u001b[31m\u001b[1m^\u001b[0m\n  \u001b[90m14 |\u001b[0m     queryKey: [\u001b[32m\"get-search-result\"\u001b[0m, debouncedInput],\n  \u001b[90m15 |\u001b[0m     queryFn: () => getSearchResult(debouncedInput),\n  \u001b[90m16 |\u001b[0m     enabled: debouncedInput.trim().length > \u001b[35m0\u001b[0m,"
+  },
+  {
+    "timestamp": "08:38:08.806",
+    "source": "Server",
+    "level": "ERROR",
+    "message": "⨯ Error: No QueryClient set, use QueryClientProvider to set one"
+  },
+  {
+    "timestamp": "08:38:18.014",
+    "source": "Server",
+    "level": "ERROR",
+    "message": "[browser] \"\\u001b[31mUncaught Error: Switched to client rendering because the server rendering errored:\\n\\nNo QueryClient set, use QueryClientProvider to set one\\u001b[39m\\n\\u001b[31m    at useProductSearch (features\\\\search\\\\hooks\\\\use-product-search.ts:13:83)\\n    at SearchProvider (features\\\\search\\\\components\\\\SearchProvider.tsx:9:34)\\u001b[39m\\n  \\u001b[90m11 |\\u001b[0m   \\u001b[36mconst\\u001b[0m [isInputOpen, setIsInputOpen] = useState(\\u001b[36mfalse\\u001b[0m);\\n  \\u001b[90m12 |\\u001b[0m   \\u001b[36mconst\\u001b[0m debouncedInput = useDebounce(input, \\u001b[35m500\\u001b[0m);\\n\\u001b[31m\\u001b[1m>\\u001b[0m \\u001b[90m13 |\\u001b[0m   \\u001b[36mconst\\u001b[0m { data: searchData = [], isPending: searchLoading, isFetching } = useQuery<\\u001b[33mSearchResult\\u001b[0m[]>({\\n  \\u001b[90m   |\\u001b[0m                                                                                   \\u001b[31m\\u001b[1m^\\u001b[0m\\n  \\u001b[90m14 |\\u001b[0m     queryKey: [\\u001b[32m\\\"get-search-result\\\"\\u001b[0m, debouncedInput],\\n  \\u001b[90m15 |\\u001b[0m     queryFn: () => getSearchResult(debouncedInput),\\n  \\u001b[90m16 |\\u001b[0m     enabled: debouncedInput.trim().length > \\u001b[35m0\\u001b[0m,\""
+  },
+  {
+    "timestamp": "08:38:18.015",
+    "source": "Browser",
+    "level": "ERROR",
+    "message": "\u001b[31mUncaught Error: Switched to client rendering because the server rendering errored:\n\nNo QueryClient set, use QueryClientProvider to set one\u001b[39m\n\u001b[31m    at useProductSearch (features\\search\\hooks\\use-product-search.ts:13:83)\n    at SearchProvider (features\\search\\components\\SearchProvider.tsx:9:34)\u001b[39m\n  \u001b[90m11 |\u001b[0m   \u001b[36mconst\u001b[0m [isInputOpen, setIsInputOpen] = useState(\u001b[36mfalse\u001b[0m);\n  \u001b[90m12 |\u001b[0m   \u001b[36mconst\u001b[0m debouncedInput = useDebounce(input, \u001b[35m500\u001b[0m);\n\u001b[31m\u001b[1m>\u001b[0m \u001b[90m13 |\u001b[0m   \u001b[36mconst\u001b[0m { data: searchData = [], isPending: searchLoading, isFetching } = useQuery<\u001b[33mSearchResult\u001b[0m[]>({\n  \u001b[90m   |\u001b[0m                                                                                   \u001b[31m\u001b[1m^\u001b[0m\n  \u001b[90m14 |\u001b[0m     queryKey: [\u001b[32m\"get-search-result\"\u001b[0m, debouncedInput],\n  \u001b[90m15 |\u001b[0m     queryFn: () => getSearchResult(debouncedInput),\n  \u001b[90m16 |\u001b[0m     enabled: debouncedInput.trim().length > \u001b[35m0\u001b[0m,"
+  },
+  {
+    "timestamp": "08:38:18.015",
+    "source": "Browser",
+    "level": "ERROR",
+    "message": "uncaughtError: Error: Switched to client rendering because the server rendering errored:\n\nNo QueryClient set, use QueryClientProvider to set one"
+  }
+]

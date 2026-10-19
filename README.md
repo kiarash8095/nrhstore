@@ -1,36 +1,623 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# راهنمای یادگیری پروژه نوین رایانه همدان
 
-## Getting Started
+این راهنما توضیح می‌دهد پروژه چگونه سازمان‌دهی شده، تغییرات معماری و سئو چه مسئله‌ای را حل کرده‌اند و چطور می‌توانی الگوهای آن را در پروژه‌های بعدی استفاده کنی. هدف، فهمیدن دلیل تصمیم‌هاست؛ نه فقط اجرای چند دستور.
 
-First, run the development server:
+برای یادگیری مرحله‌به‌مرحله همه فیچرها، از [فهرست راهنماهای فارسی پروژه](D:/Projects2/nrh_store_nextjs/docs/README.md) شروع کن. برای جریان خرید، [راهنمای کوتاه فارسی سبد خرید، نشست و TanStack Query](D:/Projects2/nrh_store_nextjs/docs/cart-learning-fa.md) نیز آماده است.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+مبنای نوشته، کد موجود در تاریخ **۲۰۲۶/۱۰/۱۷** است. ریشه پروژه `D:\Projects2\nrh_store_nextjs` است و لینک فایل‌ها برای همین محیط محلی نوشته شده‌اند. در پروژه دیگر، نام فروشگاه، دامنه‌ها و قرارداد API باید تغییر کنند.
+
+> وضعیت مهم: کاتالوگ و سبد خرید پیاده‌سازی شده‌اند و صفحه تسویه داخل Next وجود دارد. ادغام سبد با حساب، رفع خطای PHP آماده‌سازی تسویه و اتصال پرداخت نهایی هنوز باقی مانده‌اند. DNS و تنظیمات سایت زنده با این تغییرات عوض نشده‌اند.
+
+## مسیر مطالعه
+
+اگر تازه با این معماری آشنا می‌شوی، بخش‌ها را به ترتیب بخوان:
+
+1. [وضعیت فعلی](#status)
+2. [معماری Headless و جریان درخواست](#headless)
+3. [اجرای پروژه و تنظیمات](#setup)
+4. [ساختار feature-based و سرور/کلاینت](#structure)
+5. [داده، خطا و صفحه‌بندی](#data)
+6. [URL و ریدایرکت](#urls)
+7. [سئوی فنی](#seo)
+8. [کش و وبهوک](#cache)
+9. [احراز هویت و بنر](#security)
+10. [عملکرد و اسکرول](#performance)
+11. [تست، عیب‌یابی و انتشار](#verification)
+12. [استفاده در پروژه بعدی](#reuse)
+
+<a id="status"></a>
+
+## ۱. وضعیت فعلی
+
+| بخش | وضعیت |
+| --- | --- |
+| ساختار feature-based | کد اختصاصی فیچرها از زیرساخت مشترک جدا شده؛ قواعد import در ESLint وجود دارد |
+| محصولات و دسته‌ها | صفحات Next، داده واقعی ووکامرس، صفحه‌بندی و لینک‌های محلی پیاده‌سازی شده‌اند |
+| واسط کاتالوگ | `/api/catalog/*` فقط‌خواندنی با مسیرها و پارامترهای مجاز مشخص وجود دارد |
+| سئوی فنی | metadata، canonical، schema، sitemap، robots و تعدادی ریدایرکت اضافه شده‌اند |
+| وبهوک | endpoint امضاشده آماده است؛ تنظیم آن در پنل ووکامرس هنوز کار استقرار است |
+| ورود مشتری | زیرساخت قبلی اتصال به افزونه Boom و نشست امن وجود دارد |
+| مدیریت بنر | پنل مستقل Next و ذخیره‌سازی فایل دارد؛ به وردپرس منتقل نشده است |
+| سبد خرید | سایدبار، صفحه سبد، کوپن و تسویه اولیه با Store API و TanStack Query؛ ادغام حساب و رفع خطای PHP تسویه در انتظار بک‌اند |
+| checkout و درگاه | اتصال کامل و آزمون خرید واقعی انجام نشده است |
+| انتقال سایت زنده | انجام نشده؛ دامنه CMS در مثال‌ها صرفاً پیشنهادی است |
+
+نسخه‌های اصلی در [package.json](D:/Projects2/nrh_store_nextjs/package.json): Next.js `16.2.12`، React `19.2.4`، TypeScript و Tailwind CSS 4. برای درخواست‌های تعاملی مرورگر React Query و Axios و برای بخش‌هایی از وضعیت رابط Zustand استفاده شده است. فونت پروژه **YekanBakh محلی** است، نه Geist قالب اولیه Next.
+
+**درس:** وجود پوشه، کامپوننت یا endpoint به معنی کامل بودن قابلیت تجاری نیست. برای هر فیچر، وضعیت و معیار پذیرش جداگانه بنویس.
+
+<a id="headless"></a>
+
+## ۲. معماری Headless یعنی چه؟
+
+در وردپرس معمولی، قالب PHP هم داده را می‌گیرد و هم HTML سایت را تولید می‌کند. در معماری انتخاب‌شده، Next مسئول صفحات عمومی و URLهاست؛ وردپرس و ووکامرس منبع محصولات و منطق فروشگاه باقی می‌مانند.
+
+```text
+Visitor
+   |
+   v
+Next.js: pages, HTML, metadata, frontend URLs
+   |
+   v
+WordPress REST API + WooCommerce + required plugins
+   |
+   v
+Database / products / stock / customers / orders
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+این تقسیم وظیفه هدف معماری است؛ به معنی تکمیل همه اتصال‌ها نیست. خود Next هم برای واسط API، نشست‌ها و مدیریت فعلی بنرها منطق سروری دارد.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### چرا خروجی را به‌عنوان قالب وردپرس نصب نمی‌کنیم؟
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+پروژه فعلی برنامه مستقل Next است، نه قالب PHP. Route Handlerها، نشست امن، رندر سروری، بهینه‌سازی تصاویر و وبهوک به محیط اجرای سروری سازگار با Next نیاز دارند. مسیر پیشنهادی، سرویس Node.js برای Next و سرویس PHP برای وردپرس است.
 
-## Learn More
+**هاستی که فقط فایل خروجی SPA را نمایش می‌دهد لزوماً کافی نیست.** خروجی استاتیک ساده جای تمام قابلیت‌های فعلی را نمی‌گیرد؛ انتخاب آن نیازمند بازطراحی بخش‌های سروری است.
 
-To learn more about Next.js, take a look at the following resources:
+نمونه استقرار آینده:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+nrhstore.ir              -> Next.js service
+cms.nrhstore.ir          -> WordPress + WooCommerce
+cms.nrhstore.ir/wp-admin -> WordPress administration
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`cms.nrhstore.ir` فقط مثال است و ایجاد یا تنظیم نشده است. دو سرویس می‌توانند روی یک سرور یا دو میزبان جدا اجرا شوند.
 
-## Deploy on Vercel
+### دو جریان دریافت داده
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+محتوای محصول روی سرور:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```text
+Browser -> Next page -> feature server API -> WooCommerce -> HTML
+```
+
+جست‌وجوی تعاملی مرورگر:
+
+```text
+Browser -> /api/catalog/products?search=... -> Next server -> WooCommerce
+```
+
+واسط دوم **BFF یا Backend For Frontend** است: API متناسب با رابط خودمان. صفحه سروری لازم نیست از طریق HTTP به API خودش درخواست بزند؛ تابع مشترک سروری را مستقیم صدا می‌زند.
+
+**مسئله حل‌شده:** کاتالوگ مرورگر از همان دامنه فرانت دریافت می‌شود، قواعد درخواست متمرکز می‌شوند و لینک‌ها به permalink وردپرس وابسته نمی‌مانند. این کار نیاز به CORS بین مرورگر و وردپرس را برای این درخواست‌ها برطرف می‌کند، نه اینکه احراز هویت و سبد خرید را کامل کند.
+
+<a id="setup"></a>
+
+## ۳. اجرا و تنظیمات محیط
+
+طبق راهنمای Next نصب‌شده، حداقل Node.js موردنیاز `20.9` است. میزبان واقعی باید نسخه‌ای سازگار با پروژه و دارای پشتیبانی امنیتی داشته باشد.
+
+نصب وابستگی‌های قفل‌شده و اجرای توسعه از ریشه پروژه:
+
+```sh
+npm ci
+```
+
+در نصب روی دستگاه تازه، `.env.local` همراه clone یا pull منتقل نمی‌شود. اکنون `npm run dev` ابتدا تنظیمات توسعه را آماده می‌کند: اگر کلید نشست وجود ندارد، نمونهٔ محیط را با یک کلید تصادفی مخصوص همان نصب در `.env.local` ذخیره می‌کند. فایل و کلید معتبر موجود حفظ می‌شوند؛ restart کلید را تغییر نمی‌دهد. هیچ OTP، کاربر یا سبد ساختگی در برنامه ایجاد نمی‌شود؛ درخواست‌ها به وردپرس واقعی می‌روند.
+
+```sh
+npm run dev
+```
+
+برای آماده‌سازی جداگانه از `npm run setup:env` و برای بررسی تنظیمات، دسترسی نوشتن و اتصال واقعی وردپرس/ووکامرس از `npm run doctor` استفاده کن. دستور doctor پیامک نمی‌فرستد و محصولی اضافه نمی‌کند.
+
+آدرس‌های `WP_API_URL` و `WP_AUTH_BASE_URL` باید به وردپرس واقعی اشاره کنند؛ نمونهٔ توسعه برای فرانت از `http://localhost:3000` استفاده می‌کند. دو محیط توسعهٔ مستقل کلید متفاوت دارند و کاربر روی هرکدام جدا وارد می‌شود. اگر کلید موجود کوتاه یا نامعتبر باشد، برنامه آن را بی‌اجازه عوض نمی‌کند و خطای تنظیمات مشخص می‌دهد.
+
+آدرس توسعه: [localhost:3000](http://localhost:3000). اجرای نسخه production در محیط آزمایشی:
+
+```sh
+npm run build
+npm run start
+```
+
+`dev` برای توسعه است؛ `build` و `start` تنظیمات production را بررسی می‌کنند و هیچ کلیدی تولید نمی‌کنند. روی هاست باید `AUTH_SESSION_SECRET` تصادفی و ثابت، `NEXT_PUBLIC_SITE_URL` با HTTPS و مسیرهای پایدار قابل‌نوشتن تنظیم شوند. تمام workerهای یک استقرار باید کلید یکسان داشته باشند. `npm run doctor:production` پیکربندی و اتصال را بررسی می‌کند. `start` جای تنظیم دامنه، HTTPS، reverse proxy و مدیریت سرویس را نمی‌گیرد. شواهد آزمون واقعی و محدودیت‌های انتشار در [راهنمای آمادگی production](D:/Projects2/nrh_store_nextjs/docs/production-readiness-fa.md) آمده است.
+
+### متغیرهای محیطی
+
+مرجع کامل [env.example](D:/Projects2/nrh_store_nextjs/.env.example) است. مقادیر خصوصی در محیط استقرار یا فایل محلی خارج از Git قرار می‌گیرند. فایل تنظیمات موجود را با مثال جایگزین نکن؛ رازها و مقادیر معتبر قبلی باید حفظ شوند.
+
+```dotenv
+NEXT_PUBLIC_SITE_URL=https://nrhstore.ir
+WP_API_URL=https://nrhstore.ir/wp-json
+WP_AUTH_BASE_URL=https://nrhstore.ir/wp-json
+WP_AUTH_NAMESPACE=boom/v1
+SITE_INDEXING_ENABLED=false
+```
+
+| متغیر | کاربرد |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | مبدأ عمومی فرانت برای canonical و sitemap؛ بدون مسیر اضافی |
+| `WP_API_URL` | ریشه REST وردپرس؛ بدون `/wc/store/v1` |
+| `WP_AUTH_BASE_URL` | ریشه API ورود؛ با انتقال CMS این مقدار هم بررسی می‌شود |
+| `WP_AUTH_NAMESPACE` | اینجا `boom/v1`؛ وابسته به افزونه واقعی سایت |
+| `SITE_INDEXING_ENABLED` | فقط مقدار دقیق `true` ایندکس ریشه را فعال می‌کند؛ برای توسعه و staging برابر `false` |
+| `WP_WEBHOOK_SECRET` | راز مشترک وبهوک، حداقل ۳۲ کاراکتر |
+| `AUTH_SESSION_SECRET` | راز رمزنگاری نشست مشتری، سروری و حداقل ۳۲ کاراکتر |
+| `AUTH_SESSION_DATA_DIR` | محل پایدار اطلاعات ابطال نشست |
+| `BANNERS_ADMIN_*` | اطلاعات ورود و راز نشست مدیر مستقل بنر |
+| `BANNERS_DATA_DIR` | محل پایدار تنظیمات و تصاویر بنر |
+
+برای هر کاربرد راز مستقل تولید کن. نمونه دستور تولید راز روی دستگاه خودت:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+خروجی نباید وارد README، کد، پیام عمومی یا Git شود. پیشوند `NEXT_PUBLIC_` یعنی مقدار می‌تواند در کد مرورگر منتشر شود؛ برای گذرواژه، کلید مدیریتی یا راز نشست از آن استفاده نکن.
+
+[configs/site.ts](D:/Projects2/nrh_store_nextjs/configs/site.ts) نام فروشگاه و مبدأ فرانت را متمرکز و معتبرسازی می‌کند. [lib/wordpress/config.ts](D:/Projects2/nrh_store_nextjs/lib/wordpress/config.ts) آدرس API بک‌اند را می‌سازد. آدرس بک‌اند به‌خودی‌خود راز نیست؛ مهم این است که اسرار و عملیات حساس در سرور بمانند.
+
+`NEXT_PUBLIC_BASE_URL` قدیمی هنوز fallback سروری کاتالوگ است، اما تنظیم جدید و روشن‌تر `WP_API_URL` است. همه مصرف‌کنندگان قدیمی، از جمله کد اولیه سبد خرید، هنوز به‌طور کامل مهاجرت نکرده‌اند.
+
+**دام رایج:** بعد از اتصال دامنه اصلی به Next، همان دامنه لزوماً دیگر به API وردپرس نمی‌رسد. آدرس واقعی CMS را تنظیم کن یا reverse proxy مشخصی برای مسیرهای وردپرس داشته باش.
+
+<a id="structure"></a>
+
+## ۴. ساختار feature-based
+
+**مشکل قبلی:** فایل‌های یک قابلیت بین پوشه‌های عمومی پخش می‌شدند. **راه‌حل:** کد اختصاصی هر قابلیت کنار خودش و زیرساخت مشترک در ریشه بماند.
+
+نمای خلاصه، نسبت به ریشه پروژه:
+
+```text
+app/                  Next routes, layouts, API entry points, robots, sitemap
+  (store)/            Public store routes
+  (account)/          Customer routes
+  (admin)/            Banner administration routes
+  api/                HTTP endpoints
+features/
+  auth/               Login, recovery and customer sessions
+  products/           Catalog, product pages, SEO and tests
+  categories/         Categories, navigation and category SEO
+  search/             Search UI and queries
+  cart/               WooCommerce cart, shared queries and checkout preparation
+  banners/            Display, admin, uploads and storage
+  home/               Home page composition
+  account/            Dashboard composition
+components/
+  ui/                 Generic UI primitives
+  common/             Reusable cross-page components
+  layout/             Header, footer and site composition
+configs/              General configuration
+lib/                  Shared infrastructure and API transports
+hooks/                Generic hooks
+providers/            Application providers
+styles/               Global styles
+public/               Static files, fonts and icons
+docs/                 Architecture and operational guides
+```
+
+پرانتزهای `(store)` و مانند آن، فقط گروه‌بندی کد هستند؛ به URL اضافه نمی‌شوند. مثلاً داشبورد همچنان `/dashboard` است.
+
+### تشخیص کد عمومی از اختصاصی
+
+اگر کد فقط برای محصول معنی دارد، type، API، component، hook و تست آن در فیچر محصول قرار می‌گیرد. اگر بدون شناخت محصول و مشتری هم قابل استفاده است، مثل دکمه عمومی یا محدودکننده درخواست، جای آن زیرساخت مشترک است. همه فیچرها به همه زیرپوشه‌ها نیاز ندارند؛ پوشه خالیِ نمایشی نساز.
+
+### ورودی عمومی فیچر
+
+برای استفاده از فیچر دیگر، به ساختار داخلی آن وابسته نمی‌شویم:
+
+```tsx
+// Product UI entry point
+import { ProductCard } from '@/features/products';
+
+// Product server entry point
+import { getProductDetails } from '@/features/products/server';
+```
+
+این دو import باید در محیط مناسب خودشان استفاده شوند؛ import سروری در کامپوننت کلاینت مجاز نیست. `index.ts` ورودی عمومی رابط است و `server.ts` ورودی سروری. با تغییر فایل داخلی، مصرف‌کننده لازم نیست الزاماً تغییر کند.
+
+کد عمومی `lib` و UI عمومی نباید به فیچر تجاری وابسته باشند؛ `app`، layout و providerها محل ترکیب فیچرها هستند. این قواعد در [eslint.config.mjs](D:/Projects2/nrh_store_nextjs/eslint.config.mjs) اعمال می‌شوند.
+
+### چرا فایل مسیر کوتاه است؟
+
+ورودی مسیر محصول این اتصال را انجام می‌دهد:
+
+```tsx
+export { ProductPage as default } from '@/features/products/server';
+export { generateProductMetadata as generateMetadata } from '@/features/products/server';
+```
+
+منطق صفحه و سئو در فیچر می‌ماند و Next از نام‌های قراردادی مسیر آن را پیدا می‌کند. بعضی APIهای جدید کاتالوگ هنوز مستقیماً در `app/api` منطق دارند؛ همه ورودی‌ها صرفاً re-export نیستند.
+
+### مرز سرور و کلاینت
+
+در App Router، صفحات و layoutها به‌صورت پیش‌فرض Server Component هستند. دریافت سروری داده و ساخت metadata را آنجا نگه می‌داریم؛ بخش دارای state، رویداد یا API مرورگر به مرز کلاینت نیاز دارد.
+
+- `'use client'` مرز گراف ماژول‌های کلاینت است؛ برای رفع هر خطا آن را به کل صفحه اضافه نکن.
+- `import 'server-only'` وارد شدن اشتباهی ماژول سروری به گراف کلاینت را به خطا تبدیل می‌کند.
+- نام `*.client.ts` فقط قرارداد خوانایی است؛ به‌تنهایی مرز Next ایجاد نمی‌کند.
+- Client Component لزوماً به معنی نداشتن HTML اولیه سروری نیست؛ تعاملی شدن آن در مرورگر موضوع دیگری است.
+- `server-only` جای احراز هویت و کنترل مالکیت داده را نمی‌گیرد.
+
+درخواست دسته از مرورگر در [categories.client.ts](D:/Projects2/nrh_store_nextjs/features/categories/api/categories.client.ts) از دریافت سروری جدا شده است. اگر build خطای server-only داد، زنجیره import را درست کن؛ محافظ را حذف نکن.
+
+در Next فعلی، پارامترهای صفحات مرتبط ناهمگام‌اند. بخش دریافت slug در metadata محصول:
+
+```ts
+export async function generateProductMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const product = await getProductDetails((await params).slug);
+  // Build metadata from the product.
+}
+```
+
+این نمونه کوتاه شده است؛ تابع کامل در [metadata محصول](D:/Projects2/nrh_store_nextjs/features/products/seo/metadata.ts) است. **درس:** قرارداد نسخه نصب‌شده را بررسی کن، نه صرفاً آموزش نسخه قدیمی را.
+
+<a id="data"></a>
+
+## ۵. دریافت داده، خطا و صفحه‌بندی
+
+### دو client با مسئولیت متفاوت
+
+[HTTP مرورگر](D:/Projects2/nrh_store_nextjs/lib/http/client.ts) با Axios و `baseURL: '/api/catalog'` کار می‌کند. [HTTP سروری ووکامرس](D:/Projects2/nrh_store_nextjs/lib/woocommerce/store-client.ts) با `fetch` به وردپرس واقعی می‌رسد و timeout پانزده‌ثانیه‌ای، کنترل redirect، خطای نوع‌دار و سیاست کش مشترک دارد.
+
+نمونه واقعی جست‌وجو:
+
+```ts
+const { data } = await api.get('/products', {
+  params: { search: word, per_page: 10 },
+});
+```
+
+از `params` یا `URLSearchParams` استفاده می‌کنیم تا فارسی، فاصله و علامت‌های خاص درست encode شوند؛ ورودی خام کاربر را به URL نمی‌چسبانیم.
+
+### چرا BFF پراکسی آزاد نیست؟
+
+واسط کاتالوگ فقط GET و مسیرهای مشخص محصولات، دسته‌ها، برندها و نظرها را می‌پذیرد. کاربران، تنظیمات و سبد خرید مجاز نیستند. query ناشناخته، تکراری یا بیش‌ازحد بلند رد می‌شود و `per_page` سقف ۱۰۰ دارد.
+
+Cookie و Authorization مرورگر به وردپرس منتقل نمی‌شوند و خطای داخلی خام نمایش داده نمی‌شود. محدودکننده درخواست فعلی در حافظه است؛ برای چند نمونه سرور به محدودکننده مشترک نیاز داریم. `X-Forwarded-For` نیز فقط با بازنویسی پراکسی مورداعتماد قابل اتکاست.
+
+**درس:** یک endpoint عمومی برای هر URL، هر هدر و هر عملیات نساز. کاتالوگ عمومی را با داده خصوصی مشتری مخلوط نکن.
+
+### نبود محصول با قطع بودن وردپرس فرق دارد
+
+در [products.api.ts](D:/Projects2/nrh_store_nextjs/features/products/api/products.api.ts)، پاسخ `404` محصول به `null` تبدیل می‌شود تا صفحه `notFound()` اجرا کند. اما timeout، JSON خراب یا خطای `503` باید خطای دریافت داده باقی بماند.
+
+اگر همه خطاها را «پیدا نشد» کنیم، قطعی موقت شبیه حذف محصولات دیده می‌شود. اگر همه را آرایه خالی کنیم، قطعی شبیه فروشگاه بدون کالا می‌شود. بعضی helperهای قدیمی دسته هنوز آرایه خالی برمی‌گردانند؛ این بدهی فنی است، نه الگوی پیشنهادی.
+
+رابط خطای قابل تلاش مجدد و رابط نبودن صفحه جدا شده‌اند. متن خوب خطا، جای تشخیص درست علت را نمی‌گیرد.
+
+### TypeScript اعتبارسنجی JSON نیست
+
+`response.json() as Products[]` تضمین نمی‌کند JSON واقعاً مجموعه محصول معتبر باشد. چند کنترل runtime مثل آرایه بودن پاسخ و شناسه معتبر اضافه شده، اما همه قراردادهای API به‌طور کامل schema زمان اجرا ندارند. برای مرزهای مهم پروژه بعدی، اعتبارسنجی کامل با ابزاری مثل Zod را در نظر بگیر.
+
+### صفحه‌بندی واقعی
+
+علاوه بر بدنه پاسخ، هدرهای زیر خوانده و در BFF حفظ می‌شوند:
+
+```text
+X-WP-Total       -> Total matching items
+X-WP-TotalPages  -> Total pages
+```
+
+`getProductCollection()` خروجی شامل `items`، `total`، `totalPages` و `page` دارد. فهرست و دسته از آن برای شمارش و پیمایش استفاده می‌کنند؛ sitemap هم برای گرفتن همه محصولات، همه صفحات API را طی می‌کند.
+
+lookup دسته به‌جای نگاشت ثابت پنج‌تایی از اطلاعات واقعی وردپرس و slug استفاده می‌کند. پاسخ لیست دسته آرایه است؛ lookup باید یک عضو آن را برگرداند، نه کل آرایه را به‌عنوان یک دسته. هنوز بعضی بخش‌های خانه شناسه ثابت دسته دارند و باید در مهاجرت‌های بعدی بازبینی شوند.
+
+[Pagination](D:/Projects2/nrh_store_nextjs/components/common/Pagination.tsx) لینک معمولی قابل پیمایش دارد. محتوای صفحه بعد صرفاً پشت یک رویداد JavaScript پنهان نمی‌ماند و شماره نامعتبر یا خارج محدوده به نبودن صفحه می‌رود.
+
+<a id="urls"></a>
+
+## ۶. URL و ریدایرکت
+
+فرانت مالک URL عمومی است؛ `permalink` وردپرس لزوماً مقصد کاربر نیست. لینک‌ها نباید کاربر را ناخواسته به ظاهر قدیمی یا دامنه CMS برگردانند.
+
+```text
+/                               Home
+/products                       Product listing
+/products?page=2                Listing page 2
+/products/{slug}                Product detail
+/products/category/{slug}       Category detail
+/categories                     Category listing
+/contact-us                     Contact page
+```
+
+[lib/urls.ts](D:/Projects2/nrh_store_nextjs/lib/urls.ts) محل مشترک ساخت مسیر است:
+
+```ts
+export function productPath(slug: string) {
+  return `/products/${encodeURIComponent(decodeSlug(slug))}`;
+}
+```
+
+ابتدا slug decode و با NFC از نظر Unicode یکدست می‌شود، سپس یک‌بار encode می‌شود؛ در نتیجه `%D9...` دوباره به `%25D9...` تبدیل نمی‌شود. این helper برای قطعه slug است، نه decode کردن URL کامل یا redirect به مقصد دلخواه.
+
+### آدرس قدیمی کدام صفحه را باز می‌کند؟
+
+```text
+/product/laptop-a          -> /products/laptop-a
+/product-category/laptop   -> /products/category/laptop
+/فروشگاه                   -> /products
+```
+
+وقتی دامنه عمومی واقعاً به Next متصل شود، آدرس قدیمی وارد Next می‌شود، ریدایرکت می‌گیرد و **صفحه ساخته‌شده با Next** را باز می‌کند، نه قالب وردپرس. صرف نوشتن redirect بدون تنظیم مسیر ترافیک دامنه کافی نیست.
+
+قوانین ثابت [next.config.ts](D:/Projects2/nrh_store_nextjs/next.config.ts) با `permanent: true` در Next **۳۰۸** می‌دهند، نه ۳۰۱. آدرس عددی محصول نیز بعد از lookup به slug اصلی می‌رود و دسته‌های قدیمی والد/فرزند مسیر سازگاری دارند. redirect پویای صفحه بعد از شروع streaming ممکن است با سازوکار سمت مرورگر اعمال شود.
+
+مقصد باید معادل معنایی صفحه قبلی باشد؛ همه URLهای قدیمی را به خانه نمی‌فرستیم. نگاشت کامل نوشته‌ها، برندها و همه صفحات قبلی هنوز انجام نشده است.
+
+<a id="seo"></a>
+
+## ۷. سئوی فنی
+
+سئو فقط تگ نیست؛ محتوای مفید، لینک قابل پیمایش، URL پایدار، پاسخ مناسب و تجربه کاربر هم لازم‌اند. این زیرساخت تضمین رتبه یا rich result نیست.
+
+### Metadata عمومی و اختصاصی
+
+[layout اصلی](D:/Projects2/nrh_store_nextjs/app/layout.tsx) مبدأ URL، عنوان پیش‌فرض، template عنوان، توضیح عمومی، `lang="fa"`، `dir="rtl"` و robots ریشه را دارد. عنوان و توضیح محصول/دسته از داده همان صفحه ساخته می‌شود.
+
+قسمت کوتاه‌شده خروجی metadata محصول:
+
+```ts
+return {
+  title,
+  description: summary,
+  alternates: { canonical: productPath(product.slug) },
+  openGraph: {
+    type: 'website',
+    title,
+    description: summary,
+    url: absoluteUrl(productPath(product.slug)),
+    images,
+  },
+};
+```
+
+Next این داده را به تگ‌های HTML تبدیل می‌کند؛ title و canonical را دستی و تکراری در هر JSX نمی‌نویسیم. اما تابع metadata حتماً باید از ورودی مسیر Next صادر شود.
+
+| خروجی | کاربرد |
+| --- | --- |
+| `title` | عنوان مشخص صفحه؛ نام فروشگاه از template اضافه می‌شود |
+| `description` | خلاصه قابل فهم؛ تضمین نمایش عین همان متن در گوگل نیست |
+| `canonical` | معرفی URL ترجیحی محتوا؛ redirect یا دستور قطعی به گوگل نیست |
+| Open Graph و Twitter | عنوان، توضیح و تصویر برای اشتراک‌گذاری |
+| robots metadata | index/noindex و follow/nofollow متناسب با صفحه |
+
+canonical خانه به همه صفحات ارث داده نمی‌شود. صفحه دوم فهرست نیز canonical خودش را دارد، نه canonical صفحه اول.
+
+**مورد باز فعلی:** در [HomePage](D:/Projects2/nrh_store_nextjs/features/home/components/HomePage.tsx)، تگ `H1` اصلی کامنت شده است. وجود عنوان اصلی معنادار و قابل مشاهده در خانه باید در طراحی نهایی تأیید شود. این README آن را تغییر نمی‌دهد.
+
+### JSON-LD و داده واقعی
+
+JSON-LD توضیح ماشینی محتوای واقعی صفحه با script نوع `application/ld+json` است. محصول Product و BreadcrumbList دارد؛ خانه Organization دارد.
+
+منطق محصول در [structured-data.ts](D:/Projects2/nrh_store_nextjs/features/products/seo/structured-data.ts) و درج JSON در [JsonLd.tsx](D:/Projects2/nrh_store_nextjs/components/common/JsonLd.tsx) است. هنگام درج، `<` escape می‌شود تا داده نتواند تگ script را ببندد. این محافظ خاص JSON-LD است، نه پاک‌کننده عمومی HTML.
+
+قیمت از مبلغ خام، ارز و واحد اعشاری API ساخته می‌شود:
+
+```text
+amount = Number(prices.price) / (10 ** prices.currency_minor_unit)
+IRR amount = currency is IRT ? amount * 10 : amount
+```
+
+مثال: `price="250000"`، ارز `IRT` و minor unit صفر یعنی ۲۵۰٬۰۰۰ تومان؛ schema مقدار ۲٬۵۰۰٬۰۰۰ با ارز `IRR` می‌گیرد. minor unit برابر ۲ یعنی ابتدا مبلغ خام بر ۱۰۰ تقسیم شود.
+
+برای قیمت نامعتبر، صفر یا ارز ناشناخته Offer جعلی ساخته نمی‌شود. امتیاز فقط با تعداد نظر و میانگین معتبر اضافه می‌شود؛ درصدها و نظرهای ساختگی از نمایش محصول حذف شده‌اند. Product بدون Offer معتبر ممکن است واجد شرایط نمایش ویژه فروشگاهی نباشد.
+
+### sitemap، robots و noindex
+
+[sitemap.ts](D:/Projects2/nrh_store_nextjs/app/sitemap.ts) URLهای عمومی پیاده‌سازی‌شده، محصولات و دسته‌های غیرخالی را می‌سازد؛ تکرار حذف می‌شود و تاریخ تغییر ساختگی اضافه نمی‌شود. صفحات خصوصی و APIها جایی در آن ندارند.
+
+[robots.ts](D:/Projects2/nrh_store_nextjs/app/robots.ts) قواعد crawl را می‌سازد: محیط آزمایشی بسته و محیط انتشار تأییدشده دارای استثناهای حساب، مدیریت و API است. API کاتالوگ هم هدر `X-Robots-Tag: noindex` دارد.
+
+سه موضوع متفاوت‌اند: `robots.txt` کنترل crawl، `noindex` درخواست ایندکس نشدن و احراز هویت کنترل دسترسی است. دو مورد اول محافظ اطلاعات خصوصی نیستند. وقتی crawl بسته است، موتور جست‌وجو ممکن است اصلاً noindex صفحه را نبیند؛ staging باید کنترل دسترسی هم داشته باشد.
+
+فقط بعد از تأیید انتشار واقعی، `SITE_INDEXING_ENABLED=true` تنظیم و build جدید گرفته می‌شود. قواعد خصوصی و دسته‌های خالی همچنان جدا هستند. روشن کردن این مقدار روی staging یا فراموش کردن آن روی production هر دو خطرناک‌اند.
+
+### آیا `notFound()` همیشه HTTP 404 می‌دهد؟
+
+خیر؛ بعد از شروع streaming، Next می‌تواند رابط Not Found و noindex را همراه HTTP 200 بفرستد. این رفتار در آزمون قبلی دسته ناموجود دیده شد. status، محتوای رندرشده و robots را با هم بررسی کن.
+
+### سئوی محلی و محتوایی
+
+هدف فروش سراسری و جذب مشتری همدان است. نام «نوین رایانه همدان»، شماره و آدرس باید دقیق و یکسان باشند. صفحه تماس ساخته شده ولی اطلاعات کسب‌وکار نیاز به بازبینی نهایی مالک دارند.
+
+شرح دسته و محصول، مشخصات، سیاست ارسال و مرجوعی و محتوای مفید هنوز برنامه محتوایی می‌خواهند. گزارش Search Console هم هنوز مبنای اولویت‌بندی نشده است. schema و sitemap جای این کارها را نمی‌گیرند.
+
+<a id="cache"></a>
+
+## ۸. کش و وبهوک
+
+کش بار و زمان پاسخ را کم می‌کند، اما به سیاست روشن برای تازگی داده نیاز دارد.
+
+| لایه | نقش |
+| --- | --- |
+| `React.cache()` | کاهش فراخوانی تکراری تابع در رندر سروری؛ کش سراسری چنددقیقه‌ای نیست |
+| کش داده Next | استفاده مجدد از داده `fetch` با زمان revalidate و برچسب |
+| React Query | مدیریت و کش درخواست‌های تعاملی مرورگر |
+| کش HTTP/CDN | نگه‌داری احتمالی پاسخ عمومی BFF با توجه به Cache-Control |
+
+پاک شدن یکی، همه لایه‌ها و تب‌های باز را تازه نمی‌کند. `revalidate: 300` پیش‌فرض client کاتالوگ است؛ helperهای دیگر و CDN ممکن است سیاست متفاوتی داشته باشند. تضمین «تازگی همه چیز دقیقاً بعد از پنج دقیقه» نداریم.
+
+### وبهوک چه می‌کند؟
+
+داده‌های کش‌شده کاتالوگ برچسب `catalog` دارند. ووکامرس پس از تغییر محصول می‌تواند این مسیر را صدا بزند:
+
+```text
+POST /api/catalog/revalidate
+```
+
+[وبهوک کاتالوگ](D:/Projects2/nrh_store_nextjs/app/api/catalog/revalidate/route.ts) این مراحل را طی می‌کند:
+
+1. وجود راز مشترک حداقل ۳۲ کاراکتری را بررسی می‌کند.
+2. بدنه اصلی را با سقف ۲۵۶ کیبی‌بایت می‌خواند.
+3. HMAC-SHA256 از نوع Base64 را با `X-WC-Webhook-Signature` مقایسه می‌کند.
+4. فقط بعد از تأیید امضا، برچسب ثابت کاتالوگ را نامعتبر می‌کند.
+
+امضا روی بایت‌های اصلی بدنه است، نه JSON بازسازی‌شده. HMAC رمزنگاری محتوا نیست؛ HTTPS همچنان لازم است. رویدادهای ساخت، ویرایش و حذف محصول باید با راز یکسان در پنل ووکامرس تنظیم شوند؛ تغییر دسته هم رویداد مناسب یا تازگی زمان‌محور می‌خواهد.
+
+```ts
+revalidateTag('catalog', 'max');
+```
+
+`max` در نسخه فعلی رفتار **stale-while-revalidate** دارد: داده stale می‌شود و خواننده بعدی ممکن است پاسخ قبلی را ببیند تا تازه‌سازی پس‌زمینه انجام شود. این دستور بارگیری فوری همه صفحات یا push به مرورگر نیست.
+
+**قانون فروشگاه:** قیمت، موجودی و مبلغ نهایی باید هنگام checkout در بک‌اند معتبرسازی شوند؛ کاتالوگ کش‌شده و مبلغ مرورگر مرجع نهایی پرداخت نیستند.
+
+<a id="security"></a>
+
+## ۹. احراز هویت و مدیریت بنر
+
+این دو زیرساخت از قبل وجود داشته‌اند؛ همه آن‌ها در مرحله اخیر Headless ساخته نشده‌اند.
+
+### مشتری
+
+مرورگر `/api/auth/*` در Next را صدا می‌زند و سرور با افزونه اختصاصی Boom وردپرس ارتباط می‌گیرد. وردپرس خام به‌تنهایی این قرارداد را فراهم نمی‌کند.
+
+نشست محلی اطلاعات لازم بک‌اند را با AES-256-GCM رمزنگاری و احراز اصالت می‌کند و در cookie دارای HttpOnly و Secure در production نگه می‌دارد. password و cookie وردپرس نباید وارد localStorage یا state رابط شوند.
+
+داشتن cookie اثبات مجوز نیست؛ DAL ابطال نشست و هویت واقعی بک‌اند را بررسی می‌کند. برای سفارش، مالکیت همان سفارش هم لازم است. مخفی کردن دکمه یا redirect لایه proxy جای این بررسی را نمی‌گیرد.
+
+CSRF، CORS، اعتبارسنجی و rate limit مسئله‌های متفاوت‌اند. پاسخ خصوصی نیز نباید وارد کش عمومی شود. قرارداد کامل و محدودیت‌ها در [راهنمای احراز هویت](D:/Projects2/nrh_store_nextjs/features/auth/README.md) است؛ تحویل ایمیل بازیابی و همه مسیرهای reset زنده را تأییدشده فرض نکن.
+
+### بنر
+
+پنل `/banners-admin` از ورود مشتری جداست. تنظیمات و تصاویر روی دیسک‌اند و هنوز WordPress-backed نیستند. انتشار بنر build دوباره نمی‌خواهد ولی داده باید بین استقرارها حفظ شود.
+
+[راهنمای بنرها](D:/Projects2/nrh_store_nextjs/features/banners/README.md) تنظیم مدیر، آپلود، تداخل ویرایش و تست را توضیح می‌دهد. برای دیسک موقت یا چند نمونه سرور، ذخیره‌سازی محلی، ابطال نشست و rate limit فعلی را کافی فرض نکن؛ زیرساخت پایدار و مشترک لازم است.
+
+<a id="performance"></a>
+
+## ۱۰. عملکرد و اسکرول
+
+«حس حرکت نرم» با «هزینه واقعی رندر» فرق دارد. نرم‌کردن حرکت مشکل مصرف CPU یا افت فریم را خودبه‌خود حل نمی‌کند.
+
+محتوای چند بخش اصلی خانه دیگر برای نمایش به اسکرول و فعال شدن LazySection وابسته نیست؛ با Suspense رندر می‌شود. پوسته و fallback می‌توانند زودتر برسند و بخش آماده‌شده بعداً جای آن را بگیرد. این تصمیم به معنی ممنوع بودن lazy loading تصاویر خارج از دید یا ارسال همه HTML در اولین بسته نیست.
+
+انیمیشن‌های تکراری شکل‌های کوچک skeleton ساده شدند و اندازه رزروشده حفظ شد تا هزینه مرورگر و جابه‌جایی محتوا کمتر شود. چند log حجیم و دریافت داده غیرضروری هم حذف شدند. این‌ها به معنی ممیزی کامل همه جلوه‌ها یا ثبت امتیاز جدید Lighthouse نیستند.
+
+**Lenis در این مرحله اضافه یا تنظیم نشده است.** کلاس `scroll-smooth` موجود را با نرم‌شدن فیزیک همه حرکت‌های wheel یکی ندان؛ smooth scroll معمول CSS عمدتاً برای حرکت برنامه‌ای و لینک‌های لنگر است.
+
+**درس:** ابتدا در Performance مرورگر مشخص کن افت فریم از JavaScript، layout، paint، تصویر یا انیمیشن است؛ اصلاح کن و دوباره اندازه بگیر. اگر هنوز حرکت شناور لازم بود، کتابخانه اسکرول را جدا با تست موبایل و رعایت reduced motion ارزیابی کن.
+
+<a id="verification"></a>
+
+## ۱۱. تست، عیب‌یابی و انتشار
+
+### دستورها چه چیزی را بررسی می‌کنند؟
+
+| دستور | هدف |
+| --- | --- |
+| `npm run test:headless` | URL، داده، schema، BFF و وبهوک با API شبیه‌سازی‌شده |
+| `npm run test:auth` | امنیت و قرارداد احراز هویت با ورودی‌های کنترل‌شده |
+| `npm run typecheck` | تولید typeهای Next و بررسی TypeScript کل پروژه |
+| `npm run lint` | کیفیت، قواعد React و مرز import؛ جدا از build |
+| `npm run build` | سازگاری واقعی روت‌ها و گراف ماژول‌ها در production |
+
+[تست‌های محصول](D:/Projects2/nrh_store_nextjs/features/products/tests) سناریوهایی مثل encode نشدن دوباره فارسی، تفاوت ۴۰۴ با ۵۰۳، منتقل نشدن credential و جلوگیری از قیمت/امتیاز جعلی را پوشش می‌دهند. این تست‌ها خرید، حساب یا پرداخت زنده ایجاد نمی‌کنند.
+
+تست‌های integration بنر موقتاً وضعیت محلی را تغییر می‌دهند؛ طبق راهنمای خودشان روی محیط توسعه بدون ویرایش هم‌زمان اجرا شوند. تست مرورگر ابزار و تنظیم جدا می‌خواهد؛ Playwright در وابستگی‌های خود پروژه نصب نیست.
+
+### نتیجه قبلی، نه اجرای تازه این README
+
+در مرحله پیاده‌سازی قبلی، مجموع ۲۹ تست auth و Headless، TypeScript و build موفق بودند و lint فایل‌های جدید/مرتبط بررسی شد. آزمون مرورگر همان مرحله صفحات عمومی، جست‌وجو، لینک محصول، ریدایرکت، JSON-LD و موبایل را پوشش داد و خطای JavaScript صفحه ثبت نشد.
+
+این snapshot تاریخی است، نه تضمین تغییرات بعدی. خطاهای قدیمی carousel و هوک سبد در بررسی‌های بعدی رفع شدند و آخرین lint ثبت‌شده فقط دو هشدار تصاویر جست‌وجو داشت؛ هشدار file tracing بنر هم در سابقه build ثبت شده است. هنگام نوشتن این مجموعه مستندات، تست‌های برنامه دوباره اجرا نشده‌اند. روش بررسی وضعیت فعلی در [راهنمای تست و استقرار](D:/Projects2/nrh_store_nextjs/docs/testing-deployment-fa.md) آمده است.
+
+### عیب‌یابی سریع
+
+| نشانه | شروع بررسی |
+| --- | --- |
+| لینک به وردپرس برمی‌گردد | مصرف مستقیم permalink و لینک تولیدشده ایمیل/افزونه |
+| خطای server-only | زنجیره import کلاینت و ورودی عمومی اشتباه |
+| فقط بخشی از محصولات دیده می‌شود | page، per_page و هدر تعداد کل |
+| API پس از انتقال دامنه خراب است | مبدأ واقعی CMS و مسیر reverse proxy |
+| تصویر دیده نمی‌شود | URL، مسیر uploads و allowlist تصاویر Next |
+| وبهوک ۵۰۳ می‌دهد | نبودن راز یا طول ناکافی آن |
+| وبهوک ۴۰۱ می‌دهد | راز یکسان، هدر امضا و بدنه اصلی |
+| داده ویرایش‌شده هنوز قدیمی است | کش Next، پروفایل max، React Query و CDN به‌صورت جدا |
+| سبد پس از رفرش قدیمی یا خالی است | کوکی نشست و کش WordPress/CDN را بررسی کن |
+| صفحه عمومی noindex است | مقدار SITE_INDEXING_ENABLED و build همان استقرار |
+| ورود production خراب است | HTTPS، Secure cookie، secret و افزونه Boom |
+| قیمت schema عجیب است | مبلغ خام، currency و minor unit واقعی API |
+| صفحه ناموجود HTTP 200 دارد | streaming و robots رندرشده در کنار status |
+
+### پیش از جایگزینی سایت زنده
+
+1. پشتیبان قابل بازیابی وردپرس، دیتابیس و رسانه‌ها و روش بازگشت آماده شود.
+2. staging دارای Node، HTTPS، متغیرهای جدا و کنترل دسترسی باشد؛ ایندکس خاموش بماند.
+3. سبد مهمان/مشتری، ادغام پس از ورود، کوپن، checkout و مالکیت سفارش کامل و آزموده شوند.
+4. افزونه واقعی درگاه ایرانی، callback و تأیید سروری پرداخت بررسی شوند؛ پارامتر برگشت مرورگر اثبات پرداخت نیست.
+5. همه URLهای قبلی، نوشته‌ها و برندها به معادل واقعی نگاشت شوند؛ حلقه و زنجیره redirect نداشته باشیم.
+6. رسانه‌های قدیمی، wp-admin، REST API، cron و callbackهای لازم در دسترس بمانند؛ کل CMS کورکورانه مسدود نشود.
+7. لینک ایمیل‌ها و redirectهای تولیدشده افزونه‌ها به مقصد درست فرانت برسند.
+8. داده بنر و ابطال نشست پایدار، محدودکننده مناسب و نیاز چندنمونه‌ای تعیین شوند؛ هشدار بسته‌بندی بنر بررسی شود.
+9. وبهوک، metadata، canonical، schema، عنوان خانه، خطاها و عملکرد موبایل در production آزمایشی بررسی شوند.
+10. Search Console و crawl سایت قدیم/جدید مقایسه شوند؛ sitemap قبلی قبل از تعیین تکلیف همه URLها حذف نشود.
+11. پس از تأیید انتشار، ایندکس فعال و build مناسب منتشر شود؛ خطاهای ۴۰۴/۵xx، خرید و ایندکس پایش شوند.
+
+<a id="reuse"></a>
+
+## ۱۲. استفاده در پروژه بعدی
+
+همه فایل‌ها را بدون شناخت کپی نکن؛ ابتدا تصمیم‌ها و قراردادها را بازسازی کن، سپس الگوی مناسب مسئله را بردار.
+
+### دستور کار قابل تکرار
+
+1. مالک HTML و URL و مرجع داده/قوانین تجاری را مشخص کن.
+2. قابلیت‌ها را به فیچر تقسیم و زیرساخت عمومی را جدا کن.
+3. برای هر فیچر ورودی عمومی UI، ورودی سروری و قرارداد داده تعریف کن.
+4. HTTP transport مشترک با timeout، خطای قابل تشخیص و سیاست کش بساز.
+5. فقط API لازم مرورگر را با اعتبارسنجی و کنترل دسترسی عرضه کن؛ پراکسی آزاد نساز.
+6. سازنده URL را متمرکز کن؛ permalink، مسیر API و URL عمومی یک مفهوم نیستند.
+7. محتوای اصلی را بدون نیاز به اسکرول قابل دریافت کن و metadata را به مسیر متصل کن.
+8. schema را از داده معتبر بساز؛ برای صفر، مقدار ناموجود، ارز و واحد پول تست بنویس.
+9. تازگی داده، کش عمومی/خصوصی و invalidation را قبل از انتشار تعیین کن.
+10. حالت خطا و ورودی غیرمجاز را تست کن؛ فقط موفق بودن مسیر عادی کافی نیست.
+
+### تمرین برای تثبیت یادگیری
+
+- **مسیر یک محصول:** از ورودی مسیر تا `ProductPage` و `getProductDetails` را دنبال کن؛ محل تولید metadata، schema و canonical را مشخص کن.
+- **مسیر جست‌وجو:** در Network محیط توسعه ببین درخواست به `/api/catalog` می‌رود؛ سپس allowlist و client سروری را پیدا کن. حساب و سفارش زنده لازم نیست.
+- **تفاوت شکست‌ها:** تست محصول ناموجود و بک‌اند از دسترس خارج را بخوان و توضیح بده چرا خروجی متفاوت است؛ روی سایت واقعی عمداً قطعی یا تغییر قیمت ایجاد نکن.
+
+### واژه‌نامه
+
+| واژه | معنی |
+| --- | --- |
+| Headless | جدا بودن رابط عمومی از سیستم مدیریت محتوا و فروش |
+| BFF | واسط API مخصوص فرانت |
+| SSR | تولید HTML با اجرای سروری؛ الزاماً بدون streaming یا کش نیست |
+| Hydration | متصل شدن رفتار تعاملی React به خروجی اولیه مرورگر |
+| Slug | قطعه خوانای آدرس، مثل نام محصول در مسیر |
+| Canonical | URL ترجیحی محتوا، نه redirect |
+| JSON-LD | قالب داده ساختاریافته برای توصیف محتوا |
+| Revalidation | تازه‌سازی یا نامعتبر کردن کش طبق سیاست مشخص |
+| Webhook | خبر دادن سرویس به سرویس دیگر با درخواست HTTP |
+| HMAC | امضای راز مشترک برای اصالت و یکپارچگی پیام |
+| DAL | لایه دسترسی داده با بررسی هویت و مجوز نزدیک داده |
+| DTO | شکل محدود و مجاز داده عبوری از یک مرز |
+
+### ادامه مطالعه
+
+- [معماری پروژه](D:/Projects2/nrh_store_nextjs/docs/architecture.md): مالکیت پوشه‌ها و قواعد import؛ گزارش تست آن مربوط به مرحله همان سند است.
+- [اتصال Headless](D:/Projects2/nrh_store_nextjs/docs/headless-wordpress.md): محیط استقرار، وردپرس و کارهای باقی‌مانده انتشار.
+- [ورود مشتری](D:/Projects2/nrh_store_nextjs/features/auth/README.md): endpoint واقعی، امنیت نشست و محدودیت آزمون زنده.
+- [مدیریت بنر](D:/Projects2/nrh_store_nextjs/features/banners/README.md): تنظیم، ذخیره‌سازی و تست.
+- [مستندات محلی Next](D:/Projects2/nrh_store_nextjs/node_modules/next/dist/docs): مرجع تطبیق API با نسخه نصب‌شده، پس از نصب وابستگی‌ها.
+
+**جمع‌بندی:** الگوی قابل انتقال این پروژه «تفکیک مسئولیت، قرارداد روشن داده، URL مستقل، اعتبارسنجی مرزها و تست شکست» است. نام پوشه‌ها کمک می‌کنند؛ این قواعد هستند که ساختار را قابل نگه‌داری می‌کنند.

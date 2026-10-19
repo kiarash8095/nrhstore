@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "LTR layout, selector order, arrow positions, keyboard navigation, inactive-slide focus exclusion and internal destinations",
+    "Autoplay hover pause, resume and persistent focus pause",
+    "Reduced motion and responsive layout at 320px, 390px and 768px",
+    "Live refresh with one slide or an empty slider"
+  ],
+  "runtimeErrors": [],
+  "publishedDataChanged": false
+}

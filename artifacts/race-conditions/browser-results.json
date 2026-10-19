@@ -1,0 +1,86 @@
+[
+  {
+    "id": "auth-cookie-after-login",
+    "status": "race-confirmed",
+    "evidence": {
+      "authCookiePresent": false,
+      "UIStillAuthenticated": true,
+      "responseHeadersMatchRealSessionHandler": true
+    },
+    "hydrationErrors": 0
+  },
+  {
+    "id": "checkout-edit-during-address-save",
+    "status": "race-confirmed",
+    "evidence": {
+      "submittedCity": "همدان",
+      "visibleCity": "تهران",
+      "checkoutEnabledWithUnsavedAddress": true
+    },
+    "hydrationErrors": 2
+  },
+  {
+    "id": "checkout-old-read-after-prepare",
+    "status": "race-confirmed",
+    "evidence": {
+      "latestCheckoutCartCount": 2,
+      "visibleCountAfterLateGET": "۱"
+    },
+    "hydrationErrors": 2
+  },
+  {
+    "id": "checkout-ready-after-cart-change",
+    "status": "race-confirmed",
+    "evidence": {
+      "cartChangedAfterPreparation": true,
+      "stalePreparedOrderStillShown": true,
+      "classification": "stale derived state, adjacent to the race conditions"
+    },
+    "hydrationErrors": 2
+  },
+  {
+    "id": "cart-write-during-login",
+    "status": "passed",
+    "evidence": {
+      "authoritativeNewSessionCount": 7,
+      "countAfterOldGuestWrite": "۷",
+      "finalVisibleCount": "۷"
+    },
+    "hydrationErrors": 2
+  },
+  {
+    "id": "search-reversed-responses",
+    "status": "passed",
+    "evidence": "Reversing response order retains the current search key; old results do not replace the new query.",
+    "hydrationErrors": 1
+  },
+  {
+    "id": "category-hover-reversed-responses",
+    "status": "test-error",
+    "message": "AssertionError [ERR_ASSERTION]: Unexpected runtime failure\n+ actual - expected\n\n+ [\n+   'Switched to client rendering because the server rendering errored:\\n' +\n+     '\\n' +\n+     'No QueryClient set, use QueryClientProvider to set one'\n+ ]\n- []\n\n    at probe (D:\\Projects2\\nrh_store_nextjs\\tests\\race-conditions\\browser.audit.cjs:87:12)\n    at async run (D:\\Projects2\\nrh_store_nextjs\\tests\\race-conditions\\browser.audit.cjs:182:3)"
+  },
+  {
+    "id": "cart-read-cancelled-before-write",
+    "status": "passed",
+    "evidence": {
+      "expectedLatestCount": 2,
+      "visibleCountAfterLateReads": "۲",
+      "pendingReadSnapshots": [
+        1,
+        2
+      ]
+    },
+    "hydrationErrors": 2
+  },
+  {
+    "id": "fast-cart-streaming-hydration",
+    "status": "race-confirmed",
+    "evidence": {
+      "fastSessionAndCartResponses": true,
+      "hydrationErrors": 2,
+      "cartBadgeMismatch": true,
+      "checkoutMarkupMismatch": true
+    },
+    "hydrationErrors": 2
+  }
+]

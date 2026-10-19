@@ -1,0 +1,154 @@
+"use client";
+
+import { mobileMenuItems } from "@/constants/mobile-menu-items";
+import { usePathname,useRouter } from "next/navigation";
+import { useEffect,useState,type ReactNode } from "react";
+import { CgArrowsExchangeAlt } from "react-icons/cg";
+import { useAuth,useAuthActions } from "../../features/auth";
+
+type Props = {
+  /**
+   * اکشن اصلی صفحه محصول (افزودن به سبد خرید).
+   * با پاس شدنش، داک به‌جای نمایش همیشگی منو، بین منو و این اکشن سوییچ می‌کند.
+   */
+  cart?: ReactNode;
+};
+
+/** فقط صفحه‌ی جزئیات محصول؛ /products/category/<slug> را محصول حساب نمی‌کند. */
+const PRODUCT_DETAIL_PATH = /^\/products\/(?!category(?:\/|$))[^/]+\/?$/;
+
+export default function MobileNavigation({ cart }: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated, status } = useAuth();
+  const { openAuth } = useAuthActions();
+  const [isDockVisible, setIsDockVisible] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const isProductPage = PRODUCT_DETAIL_PATH.test(pathname);
+  const canSwitch = isProductPage && Boolean(cart);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsDockVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // روی صفحه‌ی محصول منوی سراسری رندر نمی‌شود؛ داک همان صفحه (همراه با اکشن خرید) جایش را می‌گیرد.
+  if (isProductPage && !cart) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div
+        className={`relative transition-all duration-500 ease-out ${
+          isDockVisible
+            ? "translate-y-0 opacity-100"
+            : "translate-y-full opacity-0"
+        }`}
+      >
+        {canSwitch && (
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen((open) => !open)}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-dock-panels"
+            aria-label={
+              isMenuOpen
+                ? "بستن منو و نمایش افزودن به سبد خرید"
+                : "نمایش منوی پایین صفحه"
+            }
+            className="pointer-events-auto absolute -top-12 right-0 flex h-11 w-11
+             items-center justify-center rounded-l-xl border border-r-0
+             border-gray-200 bg-white text-gray-600 shadow-md transition
+             hover:border-orange-300 hover:text-orange-500 active:scale-95
+             focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500"
+          >
+            <CgArrowsExchangeAlt
+              size={22}
+              className={`transition-transform duration-300 ${
+                isMenuOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        )}
+
+        <div
+          id="mobile-dock-panels"
+          className="pointer-events-auto mx-3 mb-3 grid overflow-hidden rounded-2xl border
+           border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        >
+          {/* منوی پایین */}
+          <div
+            inert={canSwitch && !isMenuOpen}
+            className={`col-start-1 row-start-1 flex min-h-[52px] items-center
+             justify-between p-1 transition-all duration-300 ease-out ${
+               isMenuOpen || !canSwitch
+                 ? "translate-y-0 opacity-100"
+                 : "pointer-events-none translate-y-3 opacity-0"
+             }`}
+          >
+            {mobileMenuItems.map((item) => {
+              const Icon = item.icon;
+              const isAuthItem = item.id === "auth";
+              const label = isAuthItem
+                ? isAuthenticated
+                  ? "حساب من"
+                  : "ورود|ثبت نام"
+                : item.name;
+
+              const itemClass = `
+                    flex-1 text-center pt-2 pb-1 cursor-pointer
+                    transition-all duration-300
+                    hover:text-orange-500 hover:-translate-y-0.5
+                  `;
+
+              return (
+                <div key={item.id} className={itemClass}>
+                  {isAuthItem ? (
+                    <button
+                      type="button"
+                      disabled={status === "unknown"}
+                      onClick={() => {
+                        setIsMenuOpen(false);
+
+                        if (isAuthenticated) router.push("/dashboard");
+                        else void openAuth();
+                      }}
+                      className="flex w-full cursor-pointer flex-col items-center disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Icon className="w-5 h-5 mx-auto" width={5} />
+                      <span className="mt-1 block text-[10px] sm:text-xs whitespace-nowrap">
+                        {label}
+                      </span>
+                    </button>
+                  ) : (
+                    <button type="button" className="flex w-full flex-col items-center" onClick={() => { setIsMenuOpen(false); router.push(item.id === 'cart' ? '/cart' : item.id === 'categories' ? '/categories' : '/'); }}>
+                      <Icon className="w-5 h-5 mx-auto" width={5} />
+                      <span className="mt-1 block text-[10px] sm:text-xs whitespace-nowrap">
+                        {label}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* اکشن صفحه‌ی محصول */}
+          {cart && (
+            <div
+              inert={isMenuOpen}
+              className={`col-start-1 row-start-1 flex min-h-[52px] items-center
+               p-1 transition-all duration-300 ease-out ${
+                 isMenuOpen
+                   ? "pointer-events-none -translate-y-3 opacity-0"
+                   : "translate-y-0 opacity-100"
+               }`}
+            >
+              {cart}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

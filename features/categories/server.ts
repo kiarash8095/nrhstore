@@ -6,3 +6,4 @@ export { default as CategoriesPage } from "./components/CategoriesPage";
 export { default as CategoryPage } from "./components/CategoryPage";
 export { getCategoryBySlug,getSpecificCategory } from './api/category.api';
 export { generateCategoryMetadata } from './seo/metadata';
+export { getHeaderCategories } from './constants/navigation';

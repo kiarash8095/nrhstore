@@ -1,12 +1,12 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { getCategoryBySlug } from '../api/category.api';
 import { getAllCategories } from '../api/categories.api';
 import { getProductCollection } from '@/features/products/server';
 import { ProductCard } from '@/features/products';
 import { Pagination } from '@/components/common/Pagination';
 import { JsonLd } from '@/components/common/JsonLd';
-import { categoryPath, pagePath, parsePage } from '@/lib/urls';
+import { categoryPath, decodeSlug, pagePath, parsePage } from '@/lib/urls';
 import { absoluteUrl } from '@/configs/site';
 import { e2p } from '@/utils/numbers';
 
@@ -16,9 +16,13 @@ interface CategoryPageProps {
 }
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  const category = await getCategoryBySlug((await params).slug);
+  const requestedSlug = (await params).slug;
+  const category = await getCategoryBySlug(requestedSlug);
   const page = parsePage((await searchParams).page);
   if (!category || !page) notFound();
+  if (decodeSlug(category.slug) !== decodeSlug(requestedSlug)) {
+    permanentRedirect(pagePath(categoryPath(category.slug), page));
+  }
   const [collection, categories] = await Promise.all([getProductCollection(page, category.id), getAllCategories()]);
   if (page > collection.totalPages) notFound();
   const path = categoryPath(category.slug);

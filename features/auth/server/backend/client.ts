@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+import { boundedJson, boundedText } from "@/lib/http/bounded-json";
 import { getAuthConfig } from "../config";
 import { isEmptyJar,jarToCookieHeader,mergeSetCookies,type CookieJar } from "../cookies";
 import { resolveAuthNonceUrl,resolveAuthUrl,type AuthEndpointName } from "../endpoints";
@@ -14,15 +16,29 @@ interface BackendRequestOptions {
   context: string;
 }
 
+function privateReadUrl(value: string) {
+  const url = new URL(value);
+  url.searchParams.set("_nrh_request", randomUUID());
+  return url;
+}
+
+function rejectCachedResponse(response: Response) {
+  const status = ["X-LiteSpeed-Cache", "CF-Cache-Status", "X-Cache"].map(name => response.headers.get(name)).join(" ");
+  if (/hit|stale|updating|revalidated/i.test(status) || Number(response.headers.get("Age")) > 0) {
+    throw new Error("Cached authentication response");
+  }
+}
+
 async function refreshNonce(jar: CookieJar): Promise<CookieJar> {
   let response: Response;
   let nonce: string;
   try {
-    response = await fetch(resolveAuthNonceUrl(), {
-      headers: { Cookie: jarToCookieHeader(jar), "Cache-Control": "no-cache" },
+    response = await fetch(privateReadUrl(resolveAuthNonceUrl()), {
+      headers: { Cookie: jarToCookieHeader(jar), "Cache-Control": "no-cache, no-store", Pragma: "no-cache" },
       cache: "no-store", redirect: "error", signal: AbortSignal.timeout(getAuthConfig().timeoutMs),
     });
-    nonce = (await response.text()).trim();
+    rejectCachedResponse(response);
+    nonce = (await boundedText(response, 128)).trim();
   } catch { throw authError("backend_unavailable"); }
   if (!response.ok || !/^[a-f0-9]{10}$/i.test(nonce)) {
     throw authError([400, 401, 403].includes(response.status) || nonce === "0" ? "session_expired" : "backend_unavailable");
@@ -37,20 +53,22 @@ export async function backendRequest(options: BackendRequestOptions): Promise<{ 
   if (!isEmptyJar(jar) && !jar.wp_rest) jar = await refreshNonce(jar);
   for (let attempt = 0; attempt < 2; attempt++) {
     const timeout = AbortSignal.timeout(getAuthConfig().timeoutMs);
-    const headers: Record<string, string> = { Accept: "application/json", "Cache-Control": "no-cache" };
+    const headers: Record<string, string> = { Accept: "application/json", "Cache-Control": "no-cache, no-store", Pragma: "no-cache" };
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
     if (!isEmptyJar(jar)) headers.Cookie = jarToCookieHeader(jar);
     if (jar.wp_rest) headers["X-WP-Nonce"] = jar.wp_rest;
     let response: Response;
     let data: unknown;
     try {
-      response = await fetch(resolveAuthUrl(options.endpoint), {
+      const url = resolveAuthUrl(options.endpoint);
+      response = await fetch(options.method === "GET" ? privateReadUrl(url) : url, {
         method: options.method || "POST", headers,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         cache: "no-store", redirect: "error",
         signal: options.signal ? AbortSignal.any([timeout, options.signal]) : timeout,
       });
-      data = await response.json();
+      rejectCachedResponse(response);
+      data = await boundedJson(response, 64 * 1024);
     } catch {
       console.error(`[auth:${options.context}] WordPress request failed`);
       throw authError("backend_unavailable");

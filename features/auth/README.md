@@ -55,7 +55,7 @@ AUTH_SESSION_DATA_DIR=<optional absolute persistent directory>
 AUTH_ALLOWED_ORIGINS=
 ```
 
-Generate the secret locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Never add a `NEXT_PUBLIC_` prefix. Production requires HTTPS.
+Generate the secret locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Never add a `NEXT_PUBLIC_` prefix. Public production origins and WordPress APIs require HTTPS. A built app can be previewed over HTTP on the exact loopback frontend hosts `localhost`, `127.0.0.1` and `[::1]`; production cookies retain `Secure`, `HttpOnly` and `SameSite=Lax`.
 
 Local revocations live in `data/auth/revoked` by default; filenames are validated random UUIDs and content is only an expiry timestamp. Preserve that directory across restarts. Expired records can be removed after their timestamp; never remove active records. If reducing the maximum session lifetime, rotate the encryption secret so older cookies cannot outlive their revocation records.
 
@@ -86,4 +86,4 @@ Live checks performed with the owner's permission: four-digit SMS login, account
 
 Email recovery returned a successful upstream response, but the owner did not receive the message. A real email password reset is therefore **not verified**. It requires WordPress mail/SMTP logs or the Boom plugin source to diagnose delivery. No successful live SMS password reset is claimed either: the supplied phone already belongs to the owner's original account, whose password was preserved. Reset request contracts and both UI paths pass isolated tests.
 
-The focused auth typecheck and the 20 security tests passed after the feature-based migration. Cart API routes have since been implemented with WooCommerce Store API and TanStack Query; the guest/account merge, PHP checkout compatibility and final payment dependencies are documented in `features/cart/README.md`. See `docs/README.md` for the complete Persian learning path. Test results here describe earlier verification, not a fresh run for the documentation update.
+The focused auth typecheck and the security tests passed after the feature-based migration. Boom still owns login, registration, OTP and recovery. The 2026-10-22 cart update uses verified WordPress cookies with separate WP/Store API nonces for account requests, and bridge 1.1 transfers guest carts through /nrh/v1/cart/merge instead of guessing Boom's sync-cart contract. Install and verify that bridge before live checkout. See `features/cart/README.md` and `docs/headless-checkout-sadad-fa.md` for current contracts and deployment limits; earlier live auth results do not certify live payment.

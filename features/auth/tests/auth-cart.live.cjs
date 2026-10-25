@@ -1,3 +1,8 @@
+// Explicit opt-in: these tests can mutate real carts/accounts or send SMS.
+if (process.env.NRH_ALLOW_LIVE_MUTATIONS !== '1') {
+  console.error('Live mutations are disabled. Set NRH_ALLOW_LIVE_MUTATIONS=1 only with authorization for a dedicated test environment.');
+  process.exit(2);
+}
 /* eslint-disable @typescript-eslint/no-require-imports -- Explicit opt-in live OTP and cart verification. */
 // Sends a real SMS only when AUTH_LIVE_TEST_PHONE is explicitly supplied.
 // Codes/cookies stay in memory. No password reset, checkout, or payment is performed.

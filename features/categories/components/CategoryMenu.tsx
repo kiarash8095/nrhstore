@@ -1,10 +1,5 @@
 "use client";
 
-import AccessoryIcon from "@/components/icons/AccessoryIcon";
-import ComputerIcon from "@/components/icons/ComputerIcon";
-import LaptopIcon from "@/components/icons/LaptopIcon";
-import NetworkIcon from "@/components/icons/NetworkIcon";
-import PrinterIcon from "@/components/icons/PrinterIcon";
 import { useQuery,useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
@@ -14,33 +9,22 @@ import { RxHamburgerMenu } from "react-icons/rx";
 import { getSubCategories } from "../api/categories.client";
 import type { Category,SubCategory } from "../types/category.types";
 import { MainMenuSkeleton } from "./skeletons/MainMenuSkeleton";
-
-const categoriesIcons = [
-  { name: "laptop", id: 55, icon: LaptopIcon },
-  { name: "hardware", id: 365, icon: ComputerIcon },
-  { name: "edari", id: 57, icon: PrinterIcon },
-  { name: "network", id: 58, icon: NetworkIcon },
-  { name: "accessory", id: 59, icon: AccessoryIcon },
-];
-
+import { CategoryIcons } from '../constants/category-icons';
+import { getHeaderCategories, getMainCategoryKey } from '../constants/navigation';
+import { categoryPath } from '@/lib/urls';
 
 export function CategoryMenu({ categories }: { categories: Category[] }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [hoveredCategory, setHoveredCategory] = useState<Category | null>(null);
+  const [hoveredCategoryId, setHoveredCategoryId] = useState<number | null>(null);
   const queryClient = useQueryClient();
-  // ترتیب نمایش دسته‌ها مطابق categoriesIcons؛ چون API ترتیب include را تضمین نمی‌کند
-  const sortedCategories = [...(categories ?? [])].sort(
-    (a, b) =>
-      categoriesIcons.findIndex((c) => c.id === a.id) -
-      categoriesIcons.findIndex((c) => c.id === b.id),
-  );
-  const activeCategory = hoveredCategory ?? sortedCategories[0] ?? null;
+  const sortedCategories = getHeaderCategories(categories);
+  const activeCategory = sortedCategories.find(category => category.id === hoveredCategoryId) ?? sortedCategories[0] ?? null;
 
   const handleMouseEnter = (category: Category) => {
-    setHoveredCategory(category);
-    queryClient.prefetchQuery({
+    setHoveredCategoryId(category.id);
+    void queryClient.prefetchQuery({
       queryKey: ["sub-category", category?.id],
-      queryFn: () => getSubCategories(category.id),
+      queryFn: ({ signal }) => getSubCategories(category.id, signal),
       staleTime: 1000 * 60 * 10,
     });
   };
@@ -48,11 +32,12 @@ export function CategoryMenu({ categories }: { categories: Category[] }) {
   const {
     data: subCategoryData = [],
     isPending,
-    isFetching,
+    isError,
+    refetch,
   } = useQuery<SubCategory[]>({
     queryKey: ["sub-category", activeCategory?.id],
-    queryFn: () => getSubCategories(activeCategory!.id),
-    enabled: !!activeCategory?.id,
+    queryFn: ({ signal }) => getSubCategories(activeCategory!.id, signal),
+    enabled: isMenuOpen && !!activeCategory?.id,
     staleTime: 1000 * 60 * 10,
   });
 
@@ -92,16 +77,16 @@ export function CategoryMenu({ categories }: { categories: Category[] }) {
                     aria-label="دسته‌بندی‌های اصلی"
                   >
                     {sortedCategories.map((category) => {
-                      const Icon = categoriesIcons.find(
-                        (categoryIcon) => categoryIcon.id === category.id,
-                      )?.icon;
+                      const categoryKey = getMainCategoryKey(category);
+                      const Icon = categoryKey ? CategoryIcons[categoryKey] : undefined;
                       const isActive = activeCategory?.id === category.id;
 
                       return (
                         <Link
-                          href={`/products/category/${category.slug}`}
+                          href={categoryPath(category.slug)}
                           key={category.id}
                           onMouseEnter={() => handleMouseEnter(category)}
+                          onFocus={() => handleMouseEnter(category)}
                           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5
                            text-right text-sm font-bold transition ${
                              isActive
@@ -120,6 +105,7 @@ export function CategoryMenu({ categories }: { categories: Category[] }) {
                         </Link>
                       );
                     })}
+                    {sortedCategories.length === 0 && <p className="p-3 text-xs text-gray-500">دسته‌بندی‌ها در دسترس نیستند.</p>}
                   </nav>
 
                   {/* ستون دوم: زیردسته‌های دسته فعال */}
@@ -128,17 +114,22 @@ export function CategoryMenu({ categories }: { categories: Category[] }) {
                       <span className="text-xs font-medium text-gray-400">
                         {activeCategory?.name}
                       </span>
-                      <Link
-                        href={`/products/category/${activeCategory?.slug}`}
+                      {activeCategory && <Link
+                        href={categoryPath(activeCategory.slug)}
                         className="text-xs font-medium text-orange-500 transition hover:text-orange-600"
                       >
                         مشاهده همه
-                      </Link>
+                      </Link>}
                     </div>
 
                     <div className="flex flex-col gap-0.5">
-                      {isPending || isFetching ? (
+                      {!activeCategory ? null : isPending ? (
                         <MainMenuSkeleton rows={4} />
+                      ) : isError && subCategoryData.length === 0 ? (
+                        <div className="px-3 py-8 text-center text-xs text-gray-500" role="alert">
+                          <p>دریافت زیردسته‌ها انجام نشد.</p>
+                          <button type="button" onClick={() => void refetch()} className="mt-3 text-orange-600 underline">تلاش دوباره</button>
+                        </div>
                       ) : subCategoryData.length === 0 ? (
                         <p className="px-3 py-8 text-center text-xs text-gray-400">
                           زیردسته‌ای برای این دسته بندی ثبت نشده است.
@@ -146,7 +137,7 @@ export function CategoryMenu({ categories }: { categories: Category[] }) {
                       ) : (
                         subCategoryData.map((category) => (
                           <Link
-                            href={`/products/category/${category.slug}`}
+                            href={categoryPath(category.slug)}
                             key={category.id}
                             className="rounded-lg px-3 py-2 text-sm text-gray-600
                              transition hover:bg-orange-50 hover:text-orange-500"

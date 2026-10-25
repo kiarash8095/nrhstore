@@ -1,9 +1,0 @@
-{
-  "product_id": 1659,
-  "stage": "complete",
-  "checkout": "blocked: Boom cart-sync.php PHP error; error UI verified",
-  "desktop": "passed",
-  "mobile": "passed",
-  "cleanup": 200,
-  "browser_errors": []
-}

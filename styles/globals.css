@@ -1,6 +1,27 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "./vendor/shadcn/tailwind.css";
+
+/* Keep Tailwind's class scan focused on application source files. */
+@source "../app";
+@source "../components";
+@source "../features";
+@source "../hooks";
+@source "../lib";
+@source "../providers";
+@source "../utils";
+@source "../constants";
+@source "../configs";
+@source "../data";
+
+/* Generated reports and test fixtures are not application class sources. */
+@source not "../.next";
+@source not "../artifacts";
+@source not "../docs";
+@source not "../output";
+@source not "../tests";
+@source not "../wordpress";
+@source not "../features/**/tests/**";
 
 @custom-variant dark (&:is(.dark *));
 

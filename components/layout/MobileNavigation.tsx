@@ -37,7 +37,7 @@ export default function MobileNavigation({ cart }: Props) {
   if (isProductPage && !cart) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)] md:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)] lg:hidden">
       <div
         className={`relative transition-all duration-500 ease-out ${
           isDockVisible

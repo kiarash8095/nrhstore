@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
       }],
     },
   },
-  ...["auth", "cart", "products", "categories", "search", "banners", "home", "account"].map(feature => ({
+  ...["auth", "cart", "payments", "products", "categories", "search", "banners", "home", "account"].map(feature => ({
     files: [`features/${feature}/**/*.{ts,tsx}`],
     rules: {
       "no-restricted-imports": ["error", {
@@ -28,6 +28,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "node_modules.audit-backup-20261024/**",
   ]),
 ]);
 

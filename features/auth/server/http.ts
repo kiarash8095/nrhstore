@@ -1,6 +1,7 @@
 import "server-only";
 
 import { consumeRateLimit } from "@/lib/server/rate-limit";
+import { isTrustedOriginRequest } from "@/lib/http/request-origin";
 import { NextResponse,type NextRequest } from "next/server";
 import type { z } from "zod";
 import { authErrorResponseSchema,type AuthErrorCode } from "../contracts";
@@ -58,14 +59,7 @@ export async function readJsonBody<T>(request: Request, schema: z.ZodType<T>): P
 }
 
 export function isSameOriginRequest(request: NextRequest) {
-  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
-  const origin = request.headers.get("origin");
-  if (!origin) return true; // Non-browser clients still undergo input/session checks.
-  try {
-    const parsed = new URL(origin);
-    if (parsed.origin !== origin) return false;
-    return origin === request.nextUrl.origin || getAuthConfig().allowedOrigins.includes(origin);
-  } catch { return false; }
+  return isTrustedOriginRequest(request, getAuthConfig().allowedOrigins);
 }
 
 export function forbiddenOrigin() {

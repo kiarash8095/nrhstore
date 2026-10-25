@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import {
-  CheckCircle2,
   ChevronRight,
   LoaderCircle,
   MapPin,
@@ -15,12 +14,13 @@ import { useCartUI } from "./CartProvider";
 import { CartFeedback, CartItems } from "./Cart";
 import { CartEmpty } from "./CartEmpty";
 import { CartSummary } from "./CartSummary";
-import { prepareCheckout } from "../api/cart.api";
+import { CartClientError, payCheckout } from "../api/cart.api";
+import { allowedPaymentRedirect, checkoutSnapshot } from '../utils/checkout';
 import { cartKeys } from "../api/cart.keys";
 import { cartText, money } from "../utils/cart.utils";
 import type { WooCommerceCart, CustomerInput } from "../contracts";
 import { iranProvinces } from "../constants/iran-provinces";
-import { getAuthIdentity } from '@/features/auth';
+import { getAuthIdentity, useAuth, useAuthActions } from '@/features/auth';
 
 function addressStamp(cart: WooCommerceCart) {
   return JSON.stringify([cart.billing_address, cart.shipping_address]);
@@ -159,27 +159,39 @@ export function Checkout() {
   const state = useCart();
   const ui = useCartUI();
   const client = useQueryClient();
+  const auth = useAuth();
+  const { openAuth } = useAuthActions();
+  const attempt = useRef<{ identity: string; hash: string; id: string } | null>(null);
+  const paymentInFlight = useRef(false);
   const [savedAddress, setSavedAddress] = useState<{ identity: string; stamp: string } | null>(null);
   const addressRevision = useRef(0);
   const prepared = useMutation({
     mutationKey: cartKeys.mutations,
     scope: { id: "cart-writes" },
     retry: false,
-    mutationFn: async () => {
-      const identity = state.queryKey[1];
+    mutationFn: async ({ identity, cart: snapshot }: { identity: string; cart: WooCommerceCart }) => {
       await client.cancelQueries({ queryKey: cartKeys.session(identity) });
       if (getAuthIdentity() !== identity) throw new Error('نشست تغییر کرده است. سبد را تازه‌سازی کنید.');
-      return { ...await prepareCheckout(), identity };
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(checkoutSnapshot(snapshot)));
+      const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+      if (attempt.current?.hash !== hash || attempt.current?.identity !== identity) attempt.current = { identity, hash, id: crypto.randomUUID() };
+      const payment = await payCheckout({ attempt_id: attempt.current.id, cart_hash: hash, expected_total: snapshot.totals.total_price });
+      if (!allowedPaymentRedirect(payment.redirect_url, window.location.origin, payment.order_id)) throw new Error('آدرس پرداخت معتبر نیست. وضعیت سفارش را با پشتیبانی بررسی کنید.');
+      return { ...payment, identity };
     },
     onSuccess: (result) => {
-      if (getAuthIdentity() === result.identity) client.setQueryData(cartKeys.session(result.identity), result.cart);
+      if (getAuthIdentity() !== result.identity) { paymentInFlight.current = false; return; }
+      window.location.assign(result.redirect_url);
     },
-    onError: (error) => ui.notify(error.message, "error"),
+    onError: (error, submitted) => {
+      paymentInFlight.current = false;
+      if (getAuthIdentity() !== submitted.identity) return;
+      if (error instanceof CartClientError && error.cart) client.setQueryData(cartKeys.session(submitted.identity), error.cart);
+      ui.notify(error.message, 'error');
+    },
   });
   const cart = state.cart;
   const addressSaved = !!cart && savedAddress?.identity === state.queryKey[1] && savedAddress.stamp === addressStamp(cart);
-  // The response must still describe the exact cart visible now. Totals alone are insufficient.
-  const preparedForCurrentCart = prepared.data?.identity === state.queryKey[1] && JSON.stringify(prepared.data.cart) === JSON.stringify(cart);
   return (
     <main className="mx-auto w-[92%] max-w-6xl py-8 pb-28 sm:py-12">
       <Link
@@ -298,11 +310,19 @@ export function Checkout() {
             <aside className="space-y-4 lg:sticky lg:top-28">
               <CartSummary cart={cart} checkout />
               <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                {!auth.isAuthenticated && <button type="button" onClick={() => openAuth({ nextPath: '/checkout' })} className="mb-4 w-full rounded-xl border border-orange-300 px-4 py-3 text-sm text-orange-700">برای پرداخت وارد حساب شوید</button>}
                 <button
                   type="button"
-                  onClick={() => prepared.mutate()}
+                  onClick={() => {
+                    if (!paymentInFlight.current) {
+                      paymentInFlight.current = true;
+                      prepared.mutate({ identity: state.queryKey[1], cart });
+                    }
+                  }}
                   disabled={
                     state.busy ||
+                    prepared.isSuccess ||
+                    !auth.isAuthenticated ||
                     !addressSaved ||
                     !!cart.errors.length ||
                     !!cart.account_sync_pending ||
@@ -318,11 +338,10 @@ export function Checkout() {
                   {prepared.isPending && (
                     <LoaderCircle className="size-4 animate-spin" />
                   )}
-                  بررسی نهایی و آماده‌سازی تسویه
+                  {prepared.isSuccess ? 'در حال انتقال…' : 'پرداخت با سداد بانک ملی'}
                 </button>
                 <p className="mt-3 text-xs leading-6 text-gray-500">
-                  در این مرحله پرداختی انجام نمی‌شود. ابتدا آدرس و روش ارسال را
-                  تأیید کنید.
+                  پس از تأیید اطلاعات، مستقیماً به صفحه امن پرداخت سداد منتقل می‌شوید.
                 </p>
                 {prepared.error && (
                   <p
@@ -331,18 +350,6 @@ export function Checkout() {
                   >
                     {prepared.error.message}
                   </p>
-                )}
-                {prepared.data && preparedForCurrentCart && addressSaved && !state.busy && (
-                  <div
-                    role="status"
-                    data-testid="checkout-ready"
-                    className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm leading-7 text-emerald-800"
-                  >
-                    <CheckCircle2 className="mb-2 size-5" />
-                    پیش‌نویس تسویه‌حساب{" "}
-                    {prepared.data.checkout.order_id.toLocaleString("fa-IR")} در
-                    فروشگاه آماده شد. ثبت نهایی و پرداخت هنوز انجام نشده است.
-                  </div>
                 )}
               </div>
             </aside>

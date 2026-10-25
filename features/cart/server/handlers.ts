@@ -1,12 +1,15 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { getCartAuthContext } from '@/features/auth/server';
-import { getStoreApiUrl } from '@/lib/wordpress/config';
+import { getStoreApiUrl, getWordPressApiUrl } from '@/lib/wordpress/config';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { ConfigurationError } from '@/lib/server/runtime-config.cjs';
-import { addItemSchema, updateItemSchema, itemKeySchema, couponSchema, customerSchema, shippingSchema } from '../contracts';
+import { addItemSchema, updateItemSchema, itemKeySchema, couponSchema, customerSchema, shippingSchema, checkoutSchema, type CheckoutInput } from '../contracts';
+import { allowedPaymentRedirect, checkoutSnapshot } from '../utils/checkout';
+import { boundedJson } from '@/lib/http/bounded-json';
+import { isTrustedOriginRequest } from '@/lib/http/request-origin';
 import type { WooCommerceCart } from '../types/woocommerce.types';
 import { cartTokenIdentity, CartLockBusyError, withCartLocks } from './cart-lock';
 
@@ -33,47 +36,56 @@ function tokenFrom(request: NextRequest, name: string) {
 }
 
 class CartConnection {
-  constructor(public token?: string, private headers: Record<string, string> = {}) {}
-  async send(path: string, method = 'GET', body?: unknown): Promise<unknown> {
+  private nonce?: string;
+  private responseUser: string | null = null;
+  constructor(public token?: string, private headers: Record<string, string> = {}, private userId?: string) {}
+  get account() { return Boolean(this.headers.Cookie && this.headers['X-WP-Nonce']); }
+  async send(path: string, method = 'GET', body?: unknown, bridge = false): Promise<unknown> {
     let response: Response;
     try {
-      const url = new URL(getStoreApiUrl() + path);
+      const url = new URL((bridge ? getWordPressApiUrl() + '/nrh/v1' : getStoreApiUrl()) + path);
       // The live LiteSpeed cache serves stale /cart responses even with no-store.
       // A unique GET URL also keeps initial anonymous Cart-Tokens isolated.
       if (method === 'GET') url.searchParams.set('_nrh_request', randomUUID());
       response = await fetch(url, {
-        method, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000),
-        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', ...this.headers, ...(this.token ? { 'Cart-Token': this.token } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        method, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(bridge ? 25000 : 15000),
+        // Account requests use Woo's native cookie session, which Boom supports.
+        // Sending Cart-Token here would select the incompatible token session handler.
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', ...this.headers, ...(this.account ? (this.nonce ? { Nonce: this.nonce } : {}) : this.token ? { 'Cart-Token': this.token } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch { throw new CartError(502, 'cart_connection_failed', 'ارتباط با فروشگاه قطع شد. پیش از تلاش دوباره، سبد را تازه‌سازی کنید.'); }
-    if (method === 'GET' && /hit/i.test(response.headers.get('X-LiteSpeed-Cache') || response.headers.get('CF-Cache-Status') || '')) {
+    if (/hit/i.test([response.headers.get('X-LiteSpeed-Cache'), response.headers.get('CF-Cache-Status')].join(' '))) {
       throw new CartError(502, 'cart_cache_misconfigured', 'دریافت نسخه به‌روز سبد ممکن نشد. لطفاً کمی بعد دوباره تلاش کنید.');
     }
     const token = response.headers.get('Cart-Token');
-    if (token && tokenPattern.test(token)) this.token = token;
-    const data = response.status === 204 ? null : await response.json().catch(() => null);
+    if (!this.account && token && tokenPattern.test(token)) this.token = token;
+    const nonce = response.headers.get('Nonce');
+    if (nonce && /^[a-zA-Z0-9]{10}$/.test(nonce)) this.nonce = nonce;
+    this.responseUser = response.headers.get('User-ID');
+    const data = response.status === 204 ? null : await boundedJson(response, bridge ? 16384 : 2 * 1024 * 1024).catch(() => null);
     if (!response.ok) {
+      const detail = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+      const extra = detail.data && typeof detail.data === 'object' ? detail.data as Record<string, unknown> : {};
       throw new CartError(response.status >= 500 ? 502 : response.status,
-        typeof data?.code === 'string' ? data.code : 'cart_request_failed',
-        response.status >= 500 ? 'فروشگاه موقتاً در دسترس نیست. دوباره تلاش کنید.' : readableMessage(data?.message),
-        isCart(data?.data?.cart) ? data.data.cart : undefined);
+        typeof detail.code === 'string' ? detail.code : 'cart_request_failed',
+        response.status >= 500 ? 'فروشگاه موقتاً در دسترس نیست. دوباره تلاش کنید.' : readableMessage(detail.message),
+        isCart(extra.cart) ? extra.cart : undefined);
     }
     if (data === null && response.status !== 204) throw new CartError(502, 'invalid_cart_response', 'پاسخ فروشگاه معتبر نیست.');
     return data;
   }
   async cart(): Promise<WooCommerceCart> {
     const data = await this.send('/cart');
-    if (!isCart(data) || !this.token) throw new CartError(502, 'invalid_cart_response', 'دریافت نشست معتبر سبد ممکن نشد.');
+    if (!isCart(data) || (this.account ? !this.nonce || this.responseUser !== this.userId : !this.token)) throw new CartError(502, 'invalid_cart_response', 'دریافت نشست معتبر سبد ممکن نشد.');
     return data;
   }
 }
 
-type Operation = 'get' | 'add-item' | 'update-item' | 'remove-item' | 'clear' | 'apply-coupon' | 'remove-coupon' | 'update-customer' | 'select-shipping-rate' | 'prepare-checkout';
+type Operation = 'get' | 'sync' | 'add-item' | 'update-item' | 'remove-item' | 'clear' | 'apply-coupon' | 'remove-coupon' | 'update-customer' | 'select-shipping-rate' | 'pay';
 function handler(operation: Operation, schema: z.ZodType = emptySchema) {
   return async (request: NextRequest) => {
-    const origin = request.headers.get('origin');
-    if (request.headers.get('sec-fetch-site') === 'cross-site' || (origin && origin !== request.nextUrl.origin)) {
+    if (!isTrustedOriginRequest(request)) {
       return json({ code: 'forbidden_origin', message: 'مبدأ درخواست معتبر نیست.' }, 403);
     }
     const limit = consumeRateLimit('cart:' + (request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'), 240, 60_000);
@@ -98,18 +110,23 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
     let dropEmptyGuest = false;
     let auth: Awaited<ReturnType<typeof getCartAuthContext>> = null;
     const finish = (response: NextResponse) => {
-      if (connection?.token && (operation !== 'get' || !tokenFrom(request, cookieName))) response.cookies.set(cookieName, connection.token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 48 * 60 * 60 });
+      if (!connection?.account && connection?.token && (operation !== 'get' || !tokenFrom(request, cookieName))) response.cookies.set(cookieName, connection.token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 48 * 60 * 60 });
       if (dropEmptyGuest) response.cookies.set(GUEST_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 });
       return response;
     };
     try {
       auth = await getCartAuthContext(request);
+      if (['pay', 'sync'].includes(operation) && !auth) return json({ code: 'login_required', message: 'برای تسویه وارد حساب شوید.' }, 401);
+      if (operation === 'pay') {
+        if (!auth) return json({ code: 'login_required', message: 'برای پرداخت وارد حساب شوید.' }, 401);
+        if (!consumeRateLimit('payment:' + auth.userId, 8, 60_000).allowed) return json({ code: 'payment_rate_limited', message: 'کمی صبر کنید و وضعیت سفارش قبلی را بررسی کنید.' }, 429);
+      }
       const expectedIdentity = request.headers.get('X-NRH-Cart-Identity');
       if (expectedIdentity && expectedIdentity !== (auth?.userId || 'guest')) return json({ code: 'cart_session_changed', message: 'نشست تغییر کرده است. سبد را تازه‌سازی کنید.' }, 409);
       const guestToken = tokenFrom(request, GUEST_COOKIE);
       const userToken = auth ? tokenFrom(request, 'nrh_cart_user_' + auth.userId) : undefined;
       // Only GET bootstraps a cart. A write cannot create a competing anonymous session.
-      if (operation !== 'get' && !guestToken && !userToken) return json({ code: 'cart_session_required', message: 'ابتدا سبد خرید را دریافت کنید.' }, 409);
+      if (operation !== 'get' && !auth && !guestToken) return json({ code: 'cart_session_required', message: 'ابتدا سبد خرید را دریافت کنید.' }, 409);
       return await withCartLocks([
         ...(guestToken ? [cartTokenIdentity(guestToken)] : []),
         ...(userToken ? [cartTokenIdentity(userToken)] : []),
@@ -117,7 +134,7 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
       ], async () => {
         let cart: WooCommerceCart | undefined;
         if (auth && guestToken) {
-          // Keep the guest cart until Boom's real merge contract is available.
+          // Reads preserve the guest cart; the explicit sync POST transfers it.
           connection = new CartConnection(guestToken);
           cart = await connection.cart();
           pending = cart.items_count > 0;
@@ -125,16 +142,44 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
         }
         if (!pending) {
           cookieName = auth ? 'nrh_cart_user_' + auth.userId : GUEST_COOKIE;
-          connection = new CartConnection(tokenFrom(request, cookieName), auth?.headers);
+          connection = new CartConnection(auth ? undefined : tokenFrom(request, cookieName), auth?.headers, auth?.userId);
           cart = await connection.cart();
         }
         if (!connection || !cart) throw new CartError(502, 'invalid_cart_response', 'دریافت سبد ممکن نشد.');
-        if (operation === 'prepare-checkout') {
-          if (pending) throw new CartError(409, 'cart_merge_required', 'سبد این دستگاه محفوظ است؛ برای ادامه خرید، همگام‌سازی با سبد حساب باید تکمیل شود.', cart);
-          if (!cart.items_count || cart.errors.length) throw new CartError(409, 'cart_not_ready', 'ابتدا مشکلات سبد خرید را برطرف کنید.', cart);
-          const checkout = await connection.send('/checkout') as { order_id?: number; status?: string };
-          if (!checkout?.order_id) throw new CartError(502, 'invalid_checkout_response', 'آماده‌سازی تسویه‌حساب ممکن نشد.');
-          return finish(json({ cart: { ...await connection.cart(), account_sync_pending: false }, checkout: { order_id: checkout.order_id, status: checkout.status } }));
+        if (operation === 'sync') {
+          if (pending && auth && guestToken) {
+            const account = new CartConnection(undefined, auth.headers, auth.userId);
+            try {
+              const synced = await account.send('/cart/merge', 'POST', { guest_token: guestToken }, true) as { merged?: boolean };
+              if (synced?.merged !== true) throw new CartError(502, 'invalid_merge_response', 'تأیید انتقال سبد دریافت نشد. دوباره سبد را بررسی کنید.');
+              // Drop the guest cookie only after the account cart can be read back.
+              const merged = await account.cart();
+              connection = account; cart = merged; pending = false; dropEmptyGuest = true;
+            } catch (error) {
+              if (error instanceof CartError) throw new CartError(error.status, error.code === 'rest_no_route' ? 'cart_bridge_missing' : error.code,
+                error.code === 'rest_no_route' ? 'سرویس انتقال سبد روی فروشگاه فعال نیست. سبد شما محفوظ است؛ با پشتیبانی تماس بگیرید.' : error.message, cart);
+              throw error;
+            }
+          }
+          return finish(json({ ...cart, account_sync_pending: pending }));
+        }
+        if (operation === 'pay') {
+          const value = input as CheckoutInput;
+          if (pending) throw new CartError(409, 'cart_merge_required', 'سبد این دستگاه محفوظ است؛ همگام‌سازی با حساب باید تکمیل شود.', cart);
+          if (!cart.items_count || cart.errors.length || !cart.needs_payment || !cart.payment_methods?.includes('melli_pay') ||
+              (cart.needs_shipping && (!cart.shipping_rates.length || cart.shipping_rates.some(pack => !pack.shipping_rates?.some(rate => rate.selected))))) {
+            throw new CartError(409, 'cart_not_ready', 'آدرس، روش ارسال و درگاه پرداخت سبد را بررسی کنید.', cart);
+          }
+          if (value.expected_total !== cart.totals.total_price || value.cart_hash !== createHash('sha256').update(checkoutSnapshot(cart)).digest('hex')) {
+            throw new CartError(409, 'cart_changed', 'سبد یا مبلغ تغییر کرده است. اطلاعات تازه را بررسی و دوباره تأیید کنید.', cart);
+          }
+          const parsed = z.object({ order_id: z.number().int().positive().safe(), redirect_url: z.string().max(2048) }).strict().safeParse(
+            await connection.send('/checkout', 'POST', { ...value, billing_address: cart.billing_address, shipping_address: cart.shipping_address }, true),
+          );
+          if (!parsed.success || !allowedPaymentRedirect(parsed.data.redirect_url, request.nextUrl.origin, parsed.data.order_id)) {
+            throw new CartError(502, 'invalid_payment_response', 'پاسخ پرداخت معتبر نیست. پیش از تلاش دوباره وضعیت سفارش را بررسی کنید.');
+          }
+          return finish(json(parsed.data));
         }
         if (operation === 'clear') { await connection.send('/cart/items', 'DELETE'); cart = await connection.cart(); }
         else if (operation !== 'get') {
@@ -156,6 +201,7 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
   };
 }
 export const getCartHandler = handler('get');
+export const syncCartHandler = handler('sync');
 export const addItemHandler = handler('add-item', addItemSchema);
 export const updateItemHandler = handler('update-item', updateItemSchema);
 export const removeItemHandler = handler('remove-item', itemKeySchema);
@@ -164,4 +210,4 @@ export const applyCouponHandler = handler('apply-coupon', couponSchema);
 export const removeCouponHandler = handler('remove-coupon', couponSchema);
 export const updateCustomerHandler = handler('update-customer', customerSchema);
 export const shippingHandler = handler('select-shipping-rate', shippingSchema);
-export const prepareCheckoutHandler = handler('prepare-checkout');
+export const payHandler = handler('pay', checkoutSchema);

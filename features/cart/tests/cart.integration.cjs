@@ -22,7 +22,11 @@ function cart(quantity = 0) {
   };
 }
 function json(data, status = 200, token = TOKEN) {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cart-Token': token } });
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cart-Token': token, Nonce: 'abcdef1234', 'User-ID': '7' } });
+}
+function accountCookie() {
+  auth.getSession = async () => ({ user: { id: '7' }, jar: { wordpress_logged_in_test: 'login', wp_rest: '1234567890' } });
+  return 'nrh_auth=' + encodeJar({ wordpress_logged_in_test: 'login' });
 }
 function req(path = '', body, cookie = 'nrh_cart_guest=' + TOKEN, extra = {}) {
   return new NextRequest('https://shop.example.test/api/cart' + path, {
@@ -137,25 +141,7 @@ test('malformed upstream responses fail safely', async () => {
   assert.equal((await handlers.getCartHandler(req())).status, 502);
 });
 
-test('checkout preparation reads a draft only and never processes payment', async () => {
-  const methods = [];
-  global.fetch = async (url, options) => {
-    methods.push(options.method);
-    return new URL(url).pathname.endsWith('/checkout') ? json({ order_id: 55, status: 'checkout-draft', order_key: 'secret-order-key' }) : json(cart(1));
-  };
-  const response = await handlers.prepareCheckoutHandler(req('/checkout', {}));
-  const data = await response.json();
-  assert.deepEqual(data.checkout, { order_id: 55, status: 'checkout-draft' });
-  assert.equal(JSON.stringify(data).includes('secret-order-key'), false);
-  assert.equal(methods.every(method => method === 'GET'), true);
-});
-
-test('checkout preparation rejects empty or invalid carts before creating a draft', async () => {
-  global.fetch = async url => { assert.equal(new URL(url).pathname.endsWith('/cart'), true); return json(cart()); };
-  assert.equal((await handlers.prepareCheckoutHandler(req('/checkout', {}))).status, 409);
-});
-
-test('nonempty guest cart survives login; missing merge contract blocks account checkout explicitly', async () => {
+test('a read preserves the guest cart until the explicit sync POST completes', async () => {
   auth.getSession = async () => ({ user: { id: '7', phone: '' }, jar: { wordpress_logged_in_test: 'login', wp_rest: '1234567890' } });
   const cookie = 'nrh_auth=' + encodeJar({ wordpress_logged_in_test: 'login' }) + '; nrh_cart_guest=' + TOKEN;
   global.fetch = async (url, options) => {
@@ -166,11 +152,9 @@ test('nonempty guest cart survives login; missing merge contract blocks account 
   };
   const response = await handlers.getCartHandler(req('', undefined, cookie));
   assert.equal((await response.json()).account_sync_pending, true);
-  const checkout = await handlers.prepareCheckoutHandler(req('/checkout', {}, cookie));
-  assert.equal(checkout.status, 409); assert.equal((await checkout.json()).code, 'cart_merge_required');
 });
 
-test('authenticated carts use the verified account cookie jar and their own token namespace', async () => {
+test('authenticated carts use verified cookies without selecting the incompatible token session', async () => {
   auth.getSession = async () => ({ user: { id: '7', phone: '' }, jar: { wordpress_logged_in_test: 'login', wp_rest: '1234567890' } });
   const cookie = 'nrh_auth=' + encodeJar({ wordpress_logged_in_test: 'login' });
   global.fetch = async (_url, options) => {
@@ -180,7 +164,8 @@ test('authenticated carts use the verified account cookie jar and their own toke
     return json(cart(1));
   };
   const response = await handlers.getCartHandler(req('', undefined, cookie));
-  assert.match(response.headers.get('Set-Cookie'), /nrh_cart_user_7=/);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Set-Cookie'), null);
   assert.equal(response.cookies.has('nrh_auth'), false, 'Cart responses must not rewrite authentication cookies');
   assert.equal((await response.json()).account_sync_pending, false);
 });
@@ -229,13 +214,100 @@ test('personal GETs use unique URLs and reject a cached cart response', async ()
   assert.equal(response.status, 502); assert.equal((await response.json()).code, 'cart_cache_misconfigured');
 });
 
-test('server checkout errors never expose PHP stack traces or server paths', async () => {
-  global.fetch = async url => new URL(url).pathname.endsWith('/checkout')
+test('server mutation errors never expose PHP stack traces or server paths', async () => {
+  const cookie = accountCookie();
+  global.fetch = async url => new URL(url).pathname.endsWith('/cart/add-item')
     ? json({ code: 'internal_server_error', message: '/home/private/wp-content/theme.php SECRET', data: { error: { message: 'SECRET stack trace' } } }, 500)
     : json(cart(1));
-  const response = await handlers.prepareCheckoutHandler(req('/checkout', {}));
+  const response = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie));
   const text = await response.text();
   assert.equal(response.status, 502); assert.equal(text.includes('SECRET'), false); assert.equal(text.includes('/home/'), false);
+});
+
+test('guests cannot transfer a cart', async () => {
+  global.fetch = async () => { throw new Error('Must not call WordPress'); };
+  for (const name of ['syncCartHandler']) {
+    assert.equal((await handlers[name](req('/checkout', {}))).status, 401);
+  }
+});
+
+test('account writes forward the fresh Woo nonce and ignore old account Cart-Tokens', async () => {
+  const cookie = accountCookie() + '; nrh_cart_user_7=' + TOKEN;
+  let writes = 0;
+  global.fetch = async (_url, options) => {
+    assert.equal(options.headers['Cart-Token'], undefined);
+    assert.match(options.headers.Cookie, /wordpress_logged_in_test=login/);
+    if (options.method === 'POST') { writes++; assert.equal(options.headers.Nonce, 'abcdef1234'); }
+    return json(cart(1));
+  };
+  assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie))).status, 200);
+  assert.equal(writes, 1);
+});
+
+test('wrong-user or missing-nonce account responses cannot authorize a write', async () => {
+  const cookie = accountCookie();
+  for (const headers of [{ Nonce: 'abcdef1234', 'User-ID': '8' }, { 'User-ID': '7' }, { Nonce: 'abcdef1234' }]) {
+    let writes = 0;
+    global.fetch = async (_url, options) => {
+      if (options.method !== 'GET') writes++;
+      return new Response(JSON.stringify(cart(1)), { headers });
+    };
+    assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie))).status, 502);
+    assert.equal(writes, 0);
+  }
+});
+
+test('oversized upstream cart bodies cannot reach a subsequent mutation', async () => {
+  let writes = 0;
+  global.fetch = async (_url, options) => {
+    if (options.method !== 'GET') writes++;
+    return json({ ...cart(1), padding: 'x'.repeat(2 * 1024 * 1024) });
+  };
+  assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }))).status, 502);
+  assert.equal(writes, 0);
+});
+
+test('sync posts the guest token server-side and retires its cookie after account readback', async () => {
+  const cookie = accountCookie() + '; nrh_cart_guest=' + TOKEN;
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push(options.method);
+    if (String(url).endsWith('/nrh/v1/cart/merge')) {
+      assert.deepEqual(JSON.parse(options.body), { guest_token: TOKEN });
+      assert.equal(options.headers['Cart-Token'], undefined);
+      assert.equal(options.headers['X-WP-Nonce'], '1234567890');
+      return json({ merged: true });
+    }
+    return json(cart(options.headers.Cookie ? 3 : 2));
+  };
+  const response = await handlers.syncCartHandler(req('/sync', {}, cookie));
+  const data = await response.json();
+  assert.equal(response.status, 200); assert.equal(data.items_count, 3); assert.equal(data.account_sync_pending, false);
+  assert.match(response.headers.get('Set-Cookie'), /nrh_cart_guest=;.*Max-Age=0/);
+  assert.deepEqual(calls, ['GET', 'POST', 'GET']);
+  assert.ok(!JSON.stringify(data).includes(TOKEN));
+});
+
+test('missing merge service or failed account readback keeps the guest cookie and cart', async () => {
+  const cookie = accountCookie() + '; nrh_cart_guest=' + TOKEN;
+  for (const mode of ['missing', 'readback', 'lost']) {
+    let writes = 0;
+    global.fetch = async (url, options) => {
+      if (String(url).endsWith('/nrh/v1/cart/merge')) {
+        writes++;
+        if (mode === 'lost') throw new Error('Lost response');
+        return mode === 'missing' ? json({ code: 'rest_no_route' }, 404) : json({ merged: true });
+      }
+      return options.headers.Cookie ? json({}, 500) : json(cart(2));
+    };
+    const response = await handlers.syncCartHandler(req('/sync', {}, cookie));
+    const data = await response.json();
+    assert.notEqual(response.status, 200); assert.equal(data.data.cart.items_count, 2);
+    assert.equal(data.data.cart.account_sync_pending, true);
+    assert.equal(response.cookies.get('nrh_cart_guest')?.value, TOKEN);
+    assert.equal(writes, 1);
+    if (mode === 'missing') assert.equal(data.code, 'cart_bridge_missing');
+  }
 });
 
 test('missing authentication configuration prevents a broken cart session before contacting WooCommerce', async () => {

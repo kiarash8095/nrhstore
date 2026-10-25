@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Opt-in separate outputs for comparing dev/start without overwriting .next.
+  distDir: process.env.NRH_NEXT_DIST_DIR || '.next',
+  experimental: {
+    // Avoid Turbopack's PostCSS child-process socket timeout on Windows.
+    turbopackPluginRuntimeStrategy: 'workerThreads',
+  },
   async redirects() {
     return [
       { source: '/product/:slug', destination: '/products/:slug', permanent: true },

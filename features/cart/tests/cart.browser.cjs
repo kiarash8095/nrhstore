@@ -1,3 +1,8 @@
+// Explicit opt-in: these tests can mutate real carts/accounts or send SMS.
+if (process.env.NRH_ALLOW_LIVE_MUTATIONS !== '1') {
+  console.error('Live mutations are disabled. Set NRH_ALLOW_LIVE_MUTATIONS=1 only with authorization for a dedicated test environment.');
+  process.exit(2);
+}
 /* eslint-disable @typescript-eslint/no-require-imports -- Standalone Playwright smoke test. */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -75,20 +80,10 @@ fs.mkdirSync(output, { recursive: true });
     const addressResponse = page.waitForResponse(response => response.url().endsWith('/api/cart/update-customer') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال' }).click();
     assert.equal((await addressResponse).status(), 200);
-    const ready = page.getByRole('button', { name: 'بررسی نهایی و آماده‌سازی تسویه' });
-    await expect(ready).toBeEnabled();
-    result.stage = 'checkout-prepare';
-    const checkoutResponse = page.waitForResponse(response => response.url().endsWith('/api/cart/checkout') && response.request().method() === 'POST');
-    await ready.click();
-    const checkout = await checkoutResponse;
-    if (checkout.ok()) {
-      await expect(page.getByTestId('checkout-ready')).toBeVisible();
-      result.checkout = 'draft prepared without payment';
-    } else {
-      assert.equal(checkout.status(), 502);
-      assert.equal((await checkout.json()).code, 'internal_server_error');
-      result.checkout = 'blocked: Boom cart-sync.php PHP error; error UI verified';
-    }
+    // This live guest smoke test must never initiate a real bank request.
+    await expect(page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'برای پرداخت وارد حساب شوید' })).toBeVisible();
+    result.checkout = 'guest payment blocked; direct-payment browser tests use intercepted APIs';
     await page.screenshot({ path: path.join(output, 'checkout-desktop.png'), fullPage: true });
     result.stage = 'mobile';
     await page.setViewportSize({ width: 390, height: 844 });

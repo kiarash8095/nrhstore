@@ -141,15 +141,31 @@ test('build works before runtime secrets or storage are provisioned', async t =>
   assert.equal(cli(root, '--production').status, 1, 'Production startup must still require a session secret');
 });
 
-test('a local development origin can be built while production startup still requires HTTPS', async t => {
+test('a local development origin can be built and started without changing its environment file', async t => {
   const root = await fixture(t);
   await prepareDevelopmentEnvironment(root);
   const before = await contents(root);
   assert.equal(cli(root, '--build').status, 0);
   const production = cli(root, '--production');
-  assert.equal(production.status, 1);
-  assert.match(production.stderr, /HTTPS is required/);
+  assert.equal(production.status, 0, production.stderr);
   assert.equal(await contents(root), before);
+});
+
+test('production preview permits HTTP only for exact loopback frontend hosts', () => {
+  const env = { AUTH_SESSION_SECRET: randomBytes(32).toString('hex'), NEXT_PUBLIC_SITE_URL: 'https://shop.example.test' };
+  for (const origin of ['http://localhost:3000', 'http://127.0.0.1:3001', 'http://[::1]:3002']) {
+    assert.equal(validateRuntimeEnvironment({ env: { ...env, NEXT_PUBLIC_SITE_URL: origin }, production: true }).siteUrl, origin);
+  }
+  for (const origin of ['http://shop.example.test', 'http://192.168.1.52:3000', 'http://localhost.example.test', 'http://127.0.0.1.example.test', 'http://localhost.:3000']) {
+    assert.throws(() => validateRuntimeEnvironment({ env: { ...env, NEXT_PUBLIC_SITE_URL: origin }, production: true }), /HTTPS is required/);
+  }
+});
+
+test('loopback preview still requires a strong session secret and HTTPS WordPress APIs', () => {
+  const env = { AUTH_SESSION_SECRET: randomBytes(32).toString('hex'), NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' };
+  for (const update of [{ AUTH_SESSION_SECRET: '' }, { AUTH_SESSION_SECRET: 'a'.repeat(64) }, { WP_API_URL: 'http://127.0.0.1/wp-json' }, { WP_AUTH_BASE_URL: 'http://localhost/wp-json' }]) {
+    assert.throws(() => validateRuntimeEnvironment({ env: { ...env, ...update }, production: true }), ConfigurationError);
+  }
 });
 
 test('build rejects malformed public configuration without revealing its value', async t => {

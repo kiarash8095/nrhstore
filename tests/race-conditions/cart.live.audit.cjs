@@ -1,3 +1,8 @@
+// Explicit opt-in: these tests can mutate real carts/accounts or send SMS.
+if (process.env.NRH_ALLOW_LIVE_MUTATIONS !== '1') {
+  console.error('Live mutations are disabled. Set NRH_ALLOW_LIVE_MUTATIONS=1 only with authorization for a dedicated test environment.');
+  process.exit(2);
+}
 /* eslint-disable @typescript-eslint/no-require-imports -- Live audit using one isolated guest cart only. */
 // No account cookies, checkout, payment, or production configuration are used.
 const assert = require('node:assert/strict');

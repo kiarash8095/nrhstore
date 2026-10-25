@@ -48,6 +48,8 @@ global.fetch = async (input, options = {}) => {
   if (url.pathname.endsWith("admin-ajax.php")) {
     assert.equal(url.searchParams.get("action"), "rest-nonce");
     assert.ok(headers.get("cookie").includes("wordpress_logged_in_test"));
+    if (scenario === "cached-nonce") return new Response(nonce, { headers: { 'X-LiteSpeed-Cache': 'hit' } });
+    if (scenario === "large-nonce") return new Response(' '.repeat(129) + nonce);
     return new Response(nonce);
   }
   const endpoint = url.pathname.split("/").pop();
@@ -63,6 +65,10 @@ global.fetch = async (input, options = {}) => {
     return scenario === "bad-code" ? json({ error: "کد اشتباه است یا منقضی شده" }, 403) : authenticated();
   }
   if (endpoint === "login" || endpoint === "register") {
+    if (scenario === "cached-login") {
+      const response = authenticated(); response.headers.set('CF-Cache-Status', 'HIT'); return response;
+    }
+    if (scenario === "large-login") return json({ success: true, padding: 'x'.repeat(65536) });
     if (scenario === "invalid-login") return json({ success: false, message: "incorrect_password" }, 401);
     if (scenario === "no-cookie") return json({ success: true, user_id: 47 });
     if (scenario === "false-success") return json({ success: false, message: "incorrect_password" });
@@ -73,7 +79,11 @@ global.fetch = async (input, options = {}) => {
     if (scenario === "expired") return json({ code: "not_logged_in", message: "User not logged in" }, 401);
     if (scenario === "outage") return json({ message: "private backend error with secret details" }, 503);
     if (headers.get("X-WP-Nonce") !== nonce) return json({ code: "rest_cookie_invalid_nonce" }, 403);
-    if (endpoint === "me") return json(scenario === "invalid-user" ? { name: "Fake", slug: "09123456789" } : user, 200, { "X-WP-Nonce": nonce });
+    if (endpoint === "me") {
+      if (scenario === "cached-me") return json(user, 200, { 'Age': '60' });
+      if (scenario === "large-me") return json({ ...user, padding: 'x'.repeat(65536) });
+      return json(scenario === "invalid-user" ? { name: "Fake", slug: "09123456789" } : user, 200, { "X-WP-Nonce": nonce });
+    }
     return json({ success: true, wp_logged_in: true });
   }
   if (endpoint === "forgot-password-email" && scenario === "missing-email") return json({ code: "user_not_found" }, 404);
@@ -155,6 +165,29 @@ test("login bootstraps nonce, syncs session, verifies /me and exposes only a saf
   assert.ok(response.headers.get("cache-control").includes("no-store"));
   assert.deepEqual(calls.map(call => call.url.pathname.split("/").pop()), ["login", "admin-ajax.php", "sync-session", "me"]);
   assert.deepEqual(calls[0].body, { username: "customer", password: "123456" });
+});
+
+test("cached or oversized login, nonce and profile responses never authenticate or issue a cookie", async () => {
+  for (const mode of ['cached-login', 'cached-nonce', 'cached-me', 'large-login', 'large-nonce', 'large-me']) {
+    scenario = mode;
+    const response = await invoke('login', { identifier: mode, password: 'test-password' });
+    assert.equal(response.status, 503, mode);
+    assert.equal(response.headers.get('set-cookie'), null, mode);
+    assert.doesNotMatch(await response.text(), /session%7Cvalid|padding|wordpress_logged_in/);
+  }
+});
+
+test("profile and REST nonce reads use unique URLs and forbid intermediary storage", async () => {
+  await invoke('login', { identifier: 'customer', password: 'test-password' });
+  const first = calls.filter(call => call.method === 'GET');
+  await invoke('login', { identifier: 'customer', password: 'test-password' });
+  const all = calls.filter(call => call.method === 'GET');
+  assert.equal(new Set(all.map(call => call.url.href)).size, all.length);
+  assert.equal(first.length, 2);
+  for (const call of all) {
+    assert.ok(call.url.searchParams.get('_nrh_request'));
+    assert.equal(call.headers.get('cache-control'), 'no-cache, no-store');
+  }
 });
 
 test("registration sends actual WordPress fields including the required email", async () => {

@@ -22,18 +22,18 @@ export default function ProductImages({ product }: ProductImagesProps) {
 
   return (
     <div
-      className="flex w-full flex-col items-center rounded-lg md:border-l-2 md:border-dashed
-     md:border-gray-300 p-2 sm:p-3 lg:w-md lg:max-w-md"
+      className="flex w-full flex-col items-center rounded-2xl bg-gray-50/70 p-3 sm:p-5"
     >
       <Image
-        className="rounded-lg bg-gray-400 object-cover transition duration-300"
+        className="aspect-square w-full max-w-[32rem] rounded-2xl bg-white object-contain p-4 transition duration-300 sm:p-6"
         src={productImage}
         alt={product?.name}
-        width={350}
-        height={350}
+        width={600}
+        height={600}
+        sizes="(max-width: 1024px) 100vw, 50vw"
       />
 
-      <div className="my-6 flex flex-wrap items-center justify-center gap-2 transition-all duration-300 sm:my-12 sm:gap-3">
+      <div className="mt-4 flex max-w-full flex-wrap items-center justify-center gap-2 transition-all duration-300 sm:mt-6 sm:gap-3">
         {images.map((item) => {
           const isActive = productImage === item.src;
 

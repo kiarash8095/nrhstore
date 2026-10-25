@@ -1,3 +1,8 @@
+// Explicit opt-in: these tests can mutate real carts/accounts or send SMS.
+if (process.env.NRH_ALLOW_LIVE_MUTATIONS !== '1') {
+  console.error('Live mutations are disabled. Set NRH_ALLOW_LIVE_MUTATIONS=1 only with authorization for a dedicated test environment.');
+  process.exit(2);
+}
 /* eslint-disable @typescript-eslint/no-require-imports -- Standalone live smoke test. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -48,16 +53,9 @@ async function run() {
     if (selected.items_count !== undefined) assert.equal(selected.items_count, cart.items_count);
     results.push({ check: 'shipping-rates', available: 0, needs_shipping: cart.needs_shipping });
   }
-  const checkout = await call('/checkout', {}, [200, 502]);
-  if (checkout.checkout) {
-    assert.ok(checkout.checkout.order_id);
-    assert.equal(checkout.checkout.status, 'checkout-draft');
-    assert.equal(checkout.cart.items_count, cart.items_count);
-    results.push({ check: 'checkout-draft', order_id: checkout.checkout.order_id, status: checkout.checkout.status, total: checkout.cart.totals.total_price });
-  } else {
-    assert.equal(checkout.code, 'internal_server_error');
-    results.push({ check: 'checkout-draft', blocked_backend: 'Boom/inc/cart-sync.php calls undefined StoreApi SessionHandler::set_customer_session_cookie()', status: 500 });
-  }
+  const checkout = await call('/checkout', {}, [401]);
+  assert.equal(checkout.code, 'login_required');
+  results.push({ check: 'guest-checkout-rejected', status: 401 });
   const recommendations = await fetch(base + '/api/cart/recommendations?ids=' + product.id).then(response => response.json());
   assert.ok(Array.isArray(recommendations));
   assert.ok(recommendations.every(item => item.id !== product.id));

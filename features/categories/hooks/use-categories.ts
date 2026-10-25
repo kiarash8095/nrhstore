@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export function useCategories(slugs: string[], ids: number[]) {
   return useQuery({
-    queryKey: ["main-categories", slugs],
-    queryFn: () => getMainCategories(ids, slugs),
+    queryKey: ["main-categories", { ids, slugs }],
+    queryFn: ({ signal }) => getMainCategories(ids, slugs, signal),
   });
 }

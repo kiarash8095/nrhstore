@@ -51,3 +51,11 @@ next-env.d.ts
 
 # AI coding agents
 .zcodeignore
+
+
+/node_modules.audit-backup-*/
+/tmp/
+/artifacts/
+/output/
+/data/
+/.kilo/

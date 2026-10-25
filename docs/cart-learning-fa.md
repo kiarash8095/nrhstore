@@ -49,7 +49,8 @@ flowchart LR
 | حذف کوپن | `POST /api/cart/remove-coupon` | `POST /cart/remove-coupon` | `code` |
 | ذخیره آدرس | `POST /api/cart/update-customer` | `POST /cart/update-customer` | `billing_address`, `shipping_address` |
 | انتخاب ارسال | `POST /api/cart/select-shipping-rate` | `POST /cart/select-shipping-rate` | `package_id`, `rate_id` |
-| آماده‌سازی تسویه | `POST /api/cart/checkout` | `GET /checkout` | `{}`؛ فقط آماده‌سازی پیش‌نویس |
+| انتقال سبد مهمان | `POST /api/cart/sync` | `POST /nrh/v1/cart/merge` | `{}`؛ توکن مهمان فقط در سرور خوانده می‌شود |
+| پرداخت نهایی | `POST /api/cart/pay` | `POST /nrh/v1/checkout` | شناسه تلاش، هش سبد و مبلغ مورد انتظار؛ مبلغ و آدرس دوباره در سرور بررسی می‌شوند |
 
 افزودن با شناسه محصول/تنوع و ویرایش و حذف با `key` ردیف انجام می‌شود. کنترل تعداد از `quantity_limits` شامل `minimum`، `maximum`، `multiple_of` و `editable` پیروی می‌کند؛ تأیید نهایی با ووکامرس است.
 
@@ -114,4 +115,4 @@ npm run test:cart:browser
 
 **۸. چه چیزهایی در همین پروژه هنوز تکمیل نشده‌اند؟**
 
-پرداخت نهایی پیاده‌سازی نشده است. آخرین آزمون، خطای ۵۰۰ در `GET /checkout` به‌علت ناسازگاری `Boom/inc/cart-sync.php` ثبت کرده؛ ادغام سبد هم منتظر کد `sync-cart` و `sync-session` است. مسیرهای سبد، تسویه و نشست باید از کش وردپرس/CDN مستثنا شوند؛ پارامتر تصادفی فعلی جای تنظیم درست کش را نمی‌گیرد. جزئیات در [مستند فنی سبد](D:/Projects2/nrh_store_nextjs/features/cart/README.md) است.
+به‌روزرسانی ۲۰۲۶/۱۰/۲۲: پرداخت سداد و انتقال سبد مهمان در رابط وردپرس ۱٫۱ پیاده‌سازی شده‌اند. سبد مهمان با Cart-Token و درخواست حساب با کوکی وردپرس و nonceهای WP/Store API کار می‌کند؛ این تغییر از انتخاب SessionHandler ناسازگار با Boom در تسویه حساب واردشده جلوگیری می‌کند. نصب رابط و آزمون خرید واقعی باقی است. مسیرهای سبد، تسویه و نشست باید از کش WordPress/CDN مستثنا شوند. جزئیات در [راهنمای فعلی تسویه](D:/Projects2/nrh_store_nextjs/docs/headless-checkout-sadad-fa.md) است.

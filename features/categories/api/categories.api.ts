@@ -55,9 +55,10 @@ export const getMainCategories = cache(
     const params = new URLSearchParams({
       parent: "0",
       include: ids.join(","),
+      per_page: "100",
     });
 
-    if (slugs?.length) {
+    if (!ids.length && slugs?.length) {
       params.set("slug", slugs.join(","));
     }
 
@@ -66,9 +67,8 @@ export const getMainCategories = cache(
         `/products/categories?${params.toString()}`,
         {
           next: {
-            // استراتژی کش هوشمندتر
-            revalidate:
-              process.env.NEXT_PUBLIC_BASE_URL === "production" ? 3600 : 60, // ۱ ساعت در تولید، ۱ دقیقه در توسعه
+            // Same taxonomy policy as getAllCategories in both execution modes.
+            revalidate: 300,
             tags: ["main-categories"], // برای invalidate دستی
           },
         },
@@ -88,6 +88,7 @@ export const getCategoriesWithId = async (
 ): Promise<Category[]> => {
   const params = new URLSearchParams({
     include: ids.join(","),
+    per_page: "100",
   });
 
   try {
@@ -95,8 +96,7 @@ export const getCategoriesWithId = async (
       `/products/categories?${params.toString()}`,
       {
         next: {
-          revalidate:
-            process.env.NEXT_PUBLIC_BASE_URL === "production" ? 3600 : 60,
+          revalidate: 300,
           tags: ["categories-with-id"],
         },
       },
@@ -131,7 +131,7 @@ export const getSubCategories = cache(
       const params = new URLSearchParams({
         parent: categoryId.toString(),
         hide_empty: "false",
-        per_page: "20", // محدود کردن تعداد نتایج
+        per_page: "100",
         order: "asc",
         orderby: "name",
       });

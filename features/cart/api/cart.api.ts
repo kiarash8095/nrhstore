@@ -1,4 +1,4 @@
-import type { AddCartItemInput, CustomerInput, ShippingInput, WooCommerceCart } from '../contracts';
+import type { AddCartItemInput, CustomerInput, ShippingInput, WooCommerceCart, CheckoutInput, PaymentRedirect } from '../contracts';
 import { withStoreSessionLock } from '@/lib/http/store-session-lock';
 import { getAuthIdentity } from '@/features/auth';
 export class CartClientError extends Error {
@@ -34,7 +34,18 @@ async function writeUnlocked<T>(path: string, body: unknown, identity: string): 
     return requestUnlocked<T>(path, body, undefined, identity);
   }
 }
-export const getCart = (signal?: AbortSignal) => request<WooCommerceCart>('', undefined, signal);
+export function getCart(signal?: AbortSignal): Promise<WooCommerceCart> {
+  const identity = getAuthIdentity();
+  return withStoreSessionLock(async () => {
+    const cart = await requestUnlocked<WooCommerceCart>('', undefined, signal, identity);
+    signal?.throwIfAborted();
+    // Login is followed by one explicit, idempotent server-side cart transfer.
+    // Do not abort a write after it starts or automatically retry a lost response.
+    return cart.account_sync_pending && identity !== 'guest'
+      ? requestUnlocked<WooCommerceCart>('/sync', {}, undefined, identity)
+      : cart;
+  }, signal);
+}
 export const addCartItem = (item: AddCartItemInput) => request<WooCommerceCart>('/add-item', item);
 export function updateCartItem(key: string, quantity: number, previousQuantity?: number) {
   if (previousQuantity === undefined) return request<WooCommerceCart>('/update-item', { key, quantity });
@@ -53,4 +64,4 @@ export const applyCoupon = (code: string) => request<WooCommerceCart>('/apply-co
 export const removeCoupon = (code: string) => request<WooCommerceCart>('/remove-coupon', { code });
 export const updateCustomer = (data: CustomerInput) => request<WooCommerceCart>('/update-customer', data);
 export const selectShipping = (data: ShippingInput) => request<WooCommerceCart>('/select-shipping-rate', data);
-export const prepareCheckout = () => request<{ cart: WooCommerceCart; checkout: { order_id: number; status: string } }>('/checkout', {});
+export const payCheckout = (input: CheckoutInput) => request<PaymentRedirect>('/pay', input);

@@ -1,7 +1,6 @@
 "use client";
 
 import { RatingSection } from "@/features/products/components/RatingSection";
-import { ShopDetails } from "@/features/products/components/ShopDetails";
 import { Products } from "@/features/products/types/product.types";
 import { removeTagP } from "@/utils/text";
 import { useEffect,useRef,useState } from "react";
@@ -77,12 +76,12 @@ export function ProductStages({ product }: ProductStagesProps) {
   };
 
   return (
-    <div className="mx-auto flex w-[95%] flex-col gap-8 lg:flex-row lg:justify-between lg:gap-5">
-      <div className="flex w-full flex-col lg:w-md">
+    <div className="mx-auto w-[95%]">
+      <div className="flex min-w-0 w-full flex-col">
         <div ref={navigationMarkerRef} className="h-px w-full" />
         <div
           ref={navigationRef}
-          className={`sticky top-5 z-40 mb-6 flex w-full flex-col gap-4 rounded-2xl bg-white p-3 transition-shadow duration-300 sm:flex-row sm:items-center sm:justify-between lg:w-3xl ${
+          className={`sticky top-5 z-40 mb-6 flex w-full flex-col gap-4 rounded-2xl bg-white p-3 transition-shadow duration-300 sm:flex-row sm:items-center sm:justify-between ${
             isSticky ? "shadow-xl" : "shadow-lg"
           }`}
         >
@@ -152,16 +151,17 @@ export function ProductStages({ product }: ProductStagesProps) {
             stageRefs.current[0] = element;
             if (element) element.style.scrollMarginTop = "7rem";
           }}
-          className=""
+          id="product-description"
+          className="scroll-mt-28"
         >
-          <div className="relative flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8 lg:w-3xl">
+          <div className="relative flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8">
             <span className="p-2 text-sm font-bold text-orange-500 sm:text-base">
               {stages[0].id}
             </span>
             <p className="text-sm sm:text-base">{stages[0].name}</p>
             <div className="h-[1px] min-w-0 flex-1 bg-gray-300" />
           </div>
-          <div className="mb-4 w-full rounded-xl p-2 shadow-xl sm:p-4 lg:w-3xl">
+          <div className="mb-4 w-full rounded-2xl border border-gray-100 bg-white p-2 shadow-sm sm:p-4">
             <p className="p-2 text-xs font-light leading-7 text-gray-600 sm:p-3 sm:text-sm sm:leading-8">
               {removeTagP(product.description)}
             </p>
@@ -173,16 +173,17 @@ export function ProductStages({ product }: ProductStagesProps) {
             stageRefs.current[1] = element;
             if (element) element.style.scrollMarginTop = "7rem";
           }}
-          className=""
+          id="product-specifications"
+          className="scroll-mt-28"
         >
-          <div className="relative mb-2 flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8 lg:w-3xl">
+          <div className="relative mb-2 flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8">
             <span className="p-2 text-sm font-bold text-orange-500 sm:text-base">
               {stages[1].id}
             </span>
             <p className="text-sm sm:text-base">{stages[1].name}</p>
             <div className="h-[1px] min-w-0 flex-1 bg-gray-200" />
           </div>
-          <div className="mb-4 w-full overflow-x-auto rounded-xl p-3 shadow-lg sm:p-6 lg:w-3xl">
+          <div className="mb-4 w-full overflow-x-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
             <table className="w-full min-w-[280px] text-right text-xs sm:text-sm">
               <thead className="border-b border-gray-300 text-gray-600">
                 <tr>
@@ -218,9 +219,10 @@ export function ProductStages({ product }: ProductStagesProps) {
             stageRefs.current[2] = element;
             if (element) element.style.scrollMarginTop = "7rem";
           }}
-          className=""
+          id="product-reviews"
+          className="scroll-mt-28"
         >
-          <div className="relative flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8 lg:w-3xl">
+          <div className="relative flex w-full flex-wrap items-center gap-2 p-2 sm:gap-8">
             <span className="p-2 text-sm font-bold text-orange-500 sm:text-base">
               {stages[2].id}
             </span>
@@ -229,10 +231,6 @@ export function ProductStages({ product }: ProductStagesProps) {
           </div>
           <RatingSection product={product} />
         </div>
-      </div>
-
-      <div className="w-full lg:w-xs">
-        <ShopDetails product={product} />
       </div>
     </div>
   );

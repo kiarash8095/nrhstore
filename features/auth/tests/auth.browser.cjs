@@ -16,6 +16,13 @@ async function openLogin(page) {
 async function run() {
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  // Unspecified auth writes must fail locally; never send SMS or mutate a real account.
+  const unexpectedWrites = [];
+  await context.route(origin + '/api/auth/**', route => {
+    if (['GET', 'HEAD'].includes(route.request().method())) return route.continue();
+    unexpectedWrites.push(route.request().url());
+    return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'backend_unavailable', message: 'Unmocked auth write blocked by browser test' } }) });
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
   const errors = [];
@@ -91,6 +98,7 @@ async function run() {
   assert.deepEqual(otpAttempts, [{ phone: "09123456789", code: "1234" }]);
   console.log("PASS: Persian SMS digits normalize and submit once without consuming a recovery code");
   assert.deepEqual(errors, []);
+  assert.deepEqual(unexpectedWrites, []);
   await context.close();
 
   const cookieFile = process.env.AUTH_LIVE_COOKIE_FILE;

@@ -69,7 +69,8 @@ export function useCart() {
   const mutate = (action: CartAction) => mutation.mutateAsync({ ...action, identity });
   return {
     queryKey,
-    cart: hydrated ? query.data : undefined, error: query.error, isLoading: !hydrated || status === 'unknown' || query.isPending,
+    cart: hydrated ? query.data ?? (query.error instanceof api.CartClientError ? query.error.cart : undefined) : undefined,
+    error: query.error, isLoading: !hydrated || status === 'unknown' || query.isPending,
     isFetching: query.isFetching, busy, refetch: query.refetch,
     addItem: (item: AddCartItemInput) => mutate({ kind: 'add', item }),
     updateItem: (key: string, quantity: number) => mutate({ kind: 'update', key, quantity, previousQuantity: query.data?.items.find(item => item.key === key)?.quantity }),

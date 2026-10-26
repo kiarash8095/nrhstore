@@ -81,7 +81,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال' }).click();
     assert.equal((await addressResponse).status(), 200);
     // This live guest smoke test must never initiate a real bank request.
-    await expect(page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'ادامه به مرحله پرداخت', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'برای پرداخت وارد حساب شوید' })).toBeVisible();
     result.checkout = 'guest payment blocked; direct-payment browser tests use intercepted APIs';
     await page.screenshot({ path: path.join(output, 'checkout-desktop.png'), fullPage: true });

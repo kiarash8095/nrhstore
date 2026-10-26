@@ -13,6 +13,8 @@ import { JanebiProducts } from "@/features/home/components/JanebiProducts";
 import { Laptops } from "@/features/home/components/Laptops";
 import { NetworkProducts } from "@/features/home/components/NetworkProducts";
 import { ProductSectionSkeleton } from "@/features/products";
+import { BlogSectionSkeleton } from '@/features/blog';
+import { HomeBlogSection } from '@/features/blog/server';
 
 /**
  * هر بخش با مرز Suspense خودش استریم می‌شود؛ پوسته‌ی صفحه فوراً نمایش داده می‌شود
@@ -61,6 +63,10 @@ export default async function Home() {
 
         <Suspense fallback={<ProductSectionSkeleton />}>
             <JanebiProducts />
+        </Suspense>
+
+        <Suspense fallback={<BlogSectionSkeleton />}>
+          <HomeBlogSection />
         </Suspense>
       </main>
     </div>

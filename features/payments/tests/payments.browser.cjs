@@ -26,7 +26,7 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
   const page = await context.newPage();
   const productSlug = process.env.PAYMENTS_TEST_PRODUCT_SLUG;
   let cart = productSlug ? { ...fixture(), items: [], items_count: 0 } : { ...fixture(), account_sync_pending: true };
-  let authenticated = !productSlug, paid = false, writes = 0, adds = 0, logins = 0, bankVisits = 0, merges = 0, mergeMissing = false;
+  let authenticated = !productSlug, paid = false, writes = 0, adds = 0, logins = 0, bankVisits = 0, merges = 0, mergeMissing = false, addressFailure = false, addressWrites = 0;
   const errors = [], results = {};
   page.on('pageerror', error => errors.push(error.message));
   await page.route(origin + '/api/**', async route => {
@@ -43,6 +43,8 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
       adds++; cart = fixture(); return fulfill(route, cart);
     }
     if (url.pathname === '/api/cart/update-customer') {
+      addressWrites++;
+      if (addressFailure) return fulfill(route, { code: 'invalid_address', message: 'آدرس آزمایشی قابل ذخیره نیست.' }, 400);
       const body = request.postDataJSON(); cart = { ...cart, ...body }; return fulfill(route, cart);
     }
     if (url.pathname === '/api/cart/update-item') {
@@ -53,10 +55,10 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     if (url.pathname === '/api/cart/apply-coupon') {
       const { code } = request.postDataJSON();
       if (code === 'BAD') return fulfill(route, { code: 'invalid_coupon', message: 'کد آزمایشی معتبر نیست.', data: { cart } }, 400);
-      assert.equal(code, 'AUDIT'); cart = { ...cart, coupons: [{ code: 'AUDIT', discount_type: 'fixed_cart', totals: { ...currency, total_discount: '0', total_discount_tax: '0' } }] }; return fulfill(route, cart);
+      assert.equal(code, 'AUDIT'); cart = { ...cart, coupons: [{ code: 'AUDIT', discount_type: 'fixed_cart', totals: { ...currency, total_discount: '25000', total_discount_tax: '0' } }], totals: { ...cart.totals, total_discount: '25000', total_price: '225000' } }; return fulfill(route, cart);
     }
     if (url.pathname === '/api/cart/remove-coupon') {
-      assert.deepEqual(request.postDataJSON(), { code: 'AUDIT' }); cart = { ...cart, coupons: [] }; return fulfill(route, cart);
+      assert.deepEqual(request.postDataJSON(), { code: 'AUDIT' }); cart = { ...cart, coupons: [], totals: { ...cart.totals, total_discount: '0', total_price: '250000' } }; return fulfill(route, cart);
     }
     if (url.pathname === '/api/cart/select-shipping-rate') {
       assert.deepEqual(request.postDataJSON(), { package_id: 0, rate_id: 'flat_rate:3' });
@@ -81,6 +83,16 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
   await page.route('https://sadad.shaparak.ir/**', async route => {
     bankVisits++; return route.fulfill({ contentType: 'text/html', body: '<h1>Intercepted bank destination</h1>' });
   });
+  const captureCheckout = async name => {
+    if (await page.getByRole('button', { name: 'بستن اعلان', exact: true }).count()) await page.getByRole('button', { name: 'بستن اعلان', exact: true }).click();
+    await page.evaluate(async () => {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.screenshot({ path: path.join(output, name), fullPage: true });
+  };
   try {
     if (productSlug) {
       await page.goto(origin + '/products/' + productSlug, { waitUntil: 'domcontentloaded', timeout: 90000 });
@@ -97,7 +109,7 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
       await expect.poll(() => cart.items_count).toBe(1);
       await page.getByPlaceholder('کد تخفیف', { exact: true }).fill('BAD');
       await page.getByRole('button', { name: 'اعمال', exact: true }).click();
-      await expect(page.getByRole('alert').filter({ hasText: 'کد آزمایشی معتبر نیست.' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'کد تخفیف', exact: true }).getByRole('alert')).toHaveText('کد آزمایشی معتبر نیست.');
       await page.getByPlaceholder('کد تخفیف', { exact: true }).fill('AUDIT');
       await page.getByRole('button', { name: 'اعمال', exact: true }).click();
       await page.getByRole('button', { name: 'حذف کد AUDIT', exact: true }).click();
@@ -115,17 +127,60 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     await page.goto(origin + '/checkout', { waitUntil: 'domcontentloaded', timeout: 90000 });
     await expect.poll(() => merges).toBe(1);
     results.guest_cart_transfer = 'passed; one explicit POST after authenticated cart read';
+    await captureCheckout('checkout-address-desktop.png');
     const values = { first_name: 'کاربر', last_name: 'آزمایشی', phone: '09000000000', email: 'test@example.invalid', city: 'همدان', address_1: 'آدرس آزمایشی', postcode: '6511111111' };
     for (const [name, value] of Object.entries(values)) await page.locator('input[name="' + name + '"]').fill(value);
     await page.locator('select[name="state"]').selectOption('HDN');
     await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال' }).click();
-    const pay = page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true });
-    await expect(pay).toBeDisabled();
+    const next = page.getByRole('button', { name: 'ادامه به مرحله پرداخت', exact: true });
+    await expect(next).toBeDisabled();
     await page.getByRole('radio', { name: /ارسال تستی/ }).click();
     await expect(page.getByRole('radio', { name: /ارسال تستی/ })).toBeChecked();
+    await expect(next).toBeEnabled();
+    results.shipping_selection = 'passed; next stage disabled until address save and explicit shipping choice';
+    await page.getByRole('button', { name: 'ویرایش آدرس', exact: true }).click();
+    await expect(next).toBeDisabled();
+    await page.locator('input[name="postcode"]').fill('۶۵۱۱۱۱۱۱۱۱');
+    await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال', exact: true }).click();
+    await expect(next).toBeEnabled();
+    assert.equal(cart.billing_address.postcode, '6511111111');
+    await captureCheckout('checkout-shipping-desktop.png');
+    await next.click();
+    await page.waitForURL(origin + '/checkout?step=payment');
+    const pay = page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true });
     await expect(pay).toBeEnabled();
-    results.shipping_selection = 'passed; payment disabled until address save and explicit shipping choice';
-    await page.screenshot({ path: path.join(output, 'checkout-desktop.png'), fullPage: true });
+    assert.equal(writes, 0, 'Moving to the payment stage must not create an order.');
+    const logo = page.getByRole('img', { name: 'بانک ملی ایران', exact: true });
+    await expect(logo).toBeVisible();
+    await expect.poll(() => logo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(page.getByRole('radio', { name: /پرداخت اینترنتی/ })).toBeChecked();
+    const coupon = page.getByRole('region', { name: 'کد تخفیف', exact: true });
+    await coupon.getByPlaceholder('کد تخفیف', { exact: true }).fill('BAD');
+    await coupon.getByRole('button', { name: 'اعمال', exact: true }).click();
+    await expect(coupon.getByRole('alert')).toHaveText('کد آزمایشی معتبر نیست.');
+    await coupon.getByPlaceholder('کد تخفیف', { exact: true }).fill('AUDIT');
+    await coupon.getByRole('button', { name: 'اعمال', exact: true }).click();
+    await expect.poll(() => cart.totals.total_price).toBe('225000');
+    await expect(page.locator('aside')).toContainText('۲۲۵٬۰۰۰ تومان');
+    await expect(coupon.getByRole('alert')).toHaveCount(0);
+    await coupon.getByRole('button', { name: 'حذف کد AUDIT', exact: true }).click();
+    await expect.poll(() => cart.totals.total_price).toBe('250000');
+    await expect(pay).toBeEnabled();
+    results.checkout_coupon_and_logo = 'passed; local bank logo loaded, coupon error/recovery and server totals updated';
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'تکمیل آدرس و روش ارسال', exact: true })).toBeVisible();
+    await expect(next).toBeEnabled();
+    await next.click();
+    await expect(pay).toBeEnabled();
+    await captureCheckout('checkout-desktop.png');
+    await page.locator('main').screenshot({ path: path.join(output, 'checkout-payment-panel.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(pay).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureCheckout('checkout-mobile.png');
+    await page.screenshot({ path: path.join(output, 'checkout-mobile-viewport.png') });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    results.checkout_stages = 'passed; browser back preserves confirmed delivery; desktop/mobile payment controls';
     await pay.dblclick();
     await page.waitForURL('https://sadad.shaparak.ir/VPG/Purchase?Token=mock-bank-token-123');
     assert.equal(writes, 1); assert.equal(bankVisits, 1); results.direct_redirect = 'passed; one request for double click, bank intercepted';
@@ -150,8 +205,38 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     authenticated = false; cart = fixture();
     await page.goto(origin + '/checkout', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('button', { name: 'برای پرداخت وارد حساب شوید' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'ادامه به مرحله پرداخت', exact: true })).toBeDisabled();
     results.mandatory_login = 'passed';
+    authenticated = true; addressFailure = true; cart = fixture();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(origin + '/checkout', { waitUntil: 'domcontentloaded' });
+    for (const [name, value] of Object.entries(values)) await page.locator('input[name="' + name + '"]').fill(value);
+    await page.locator('select[name="state"]').selectOption('HDN');
+    const beforeInvalid = addressWrites;
+    await page.locator('input[name="postcode"]').fill('123');
+    await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال', exact: true }).click();
+    assert.equal(addressWrites, beforeInvalid, 'Invalid postcode must not be submitted.');
+    await page.locator('input[name="postcode"]').fill(values.postcode);
+    await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'آدرس تحویل سفارش', exact: true }).getByRole('alert')).toHaveText('آدرس آزمایشی قابل ذخیره نیست.');
+    await expect(next).toBeDisabled();
+    await expect(page.locator('input[name="city"]')).toHaveValue('همدان');
+    addressFailure = false;
+    cart = { ...cart, payment_methods: [] };
+    await page.getByRole('button', { name: 'ذخیره آدرس و محاسبه ارسال', exact: true }).click();
+    await page.getByRole('radio', { name: /ارسال تستی/ }).click();
+    await expect(next).toBeEnabled();
+    results.address_error_recovery = 'passed; invalid postcode blocked, failed save preserves form, explicit retry succeeds';
+    await next.click();
+    await expect(pay).toBeDisabled();
+    await expect(page.getByRole('region', { name: 'روش پرداخت', exact: true }).getByRole('alert')).toContainText('در دسترس نیست');
+    assert.equal(writes, 1, 'An unavailable gateway must not submit a new payment.');
+    results.unavailable_gateway = 'passed';
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'تکمیل آدرس و روش ارسال', exact: true })).toBeVisible();
+    await expect(next).toBeDisabled();
+    await expect(page.locator('input[name="city"]')).toHaveValue('همدان');
+    results.payment_reload = 'passed; saved server address is prefilled and must be reconfirmed';
     authenticated = true; mergeMissing = true; cart = { ...fixture(), account_sync_pending: true };
     await page.goto(origin + '/cart', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('alert').filter({ hasText: 'سبد شما محفوظ است' })).toBeVisible();

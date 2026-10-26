@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
       }],
     },
   },
-  ...["auth", "cart", "payments", "products", "categories", "search", "banners", "home", "account"].map(feature => ({
+  ...["auth", "cart", "payments", "products", "categories", "search", "banners", "home", "account", "blog"].map(feature => ({
     files: [`features/${feature}/**/*.{ts,tsx}`],
     rules: {
       "no-restricted-imports": ["error", {

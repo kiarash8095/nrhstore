@@ -10,8 +10,8 @@ interface PageTransitionProps {
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
 
-  // Transactional forms must not mount twice during AnimatePresence's exit phase.
-  if (pathname === '/cart' || pathname === '/checkout') return <div className="w-full min-w-0 flex-1">{children}</div>;
+  // Keep transactional forms single-mounted and editorial SSR content visible before hydration.
+  if (pathname === '/cart' || pathname === '/checkout' || pathname === '/blog' || pathname.startsWith('/blog/')) return <div className="w-full min-w-0 flex-1">{children}</div>;
 
   return (
     <AnimatePresence mode="wait">

@@ -34,7 +34,7 @@ export default function MobileNavigation({ cart }: Props) {
   }, []);
 
   // روی صفحه‌ی محصول منوی سراسری رندر نمی‌شود؛ داک همان صفحه (همراه با اکشن خرید) جایش را می‌گیرد.
-  if (isProductPage && !cart) return null;
+  if ((isProductPage && !cart) || pathname === '/checkout') return null;
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)] lg:hidden">

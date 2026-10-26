@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import { useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { AlertCircle, LoaderCircle, RefreshCw, ShoppingBag, Trash2 } from 'lucide-react';
@@ -10,6 +9,7 @@ import { CartEmpty } from './CartEmpty';
 import { CartCoupon } from './CartCoupon';
 import { CartRecommendations } from './CartRecommendations';
 import { cartText } from '../utils/cart.utils';
+import { CheckoutProgress } from './CheckoutProgress';
 type State = ReturnType<typeof useCart>;
 export function CartFeedback({ state }: { state: State }) {
   if (state.isLoading && !state.error) return <div role="status" className="flex justify-center gap-3 py-16 text-sm text-gray-500"><LoaderCircle className="size-5 animate-spin" />در حال دریافت سبد خرید…</div>;
@@ -29,7 +29,7 @@ export function Cart() {
   const state = useCart();
   const [confirmClear, setConfirmClear] = useState(false);
   return <main className="mx-auto w-[92%] max-w-6xl py-8 pb-28 sm:py-12">
-    <nav aria-label="مراحل خرید" className="mb-8 flex items-center gap-3 text-sm"><span className="font-bold text-orange-600">۱. سبد خرید</span><span className="text-gray-300">ـــــ</span><Link href="/checkout" className="text-gray-500">۲. تسویه‌حساب</Link></nav>
+    <CheckoutProgress step={1} />
     <div className="mb-6 flex items-center justify-between"><h1 className="flex items-center gap-3 text-xl font-bold"><ShoppingBag className="size-6 text-orange-600" />سبد خرید شما</h1>
       {!!state.cart?.items.length && <button type="button" disabled={state.busy} onClick={() => setConfirmClear(true)} className="flex items-center gap-2 text-xs text-gray-500 hover:text-red-600 disabled:opacity-40"><Trash2 className="size-4" />خالی کردن سبد</button>}</div>
     <Dialog.Root open={confirmClear} onOpenChange={setConfirmClear}><Dialog.Portal>

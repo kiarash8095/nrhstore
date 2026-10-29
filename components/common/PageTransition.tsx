@@ -11,7 +11,7 @@ export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
 
   // Keep transactional forms single-mounted and editorial SSR content visible before hydration.
-  if (pathname === '/cart' || pathname === '/checkout' || pathname === '/blog' || pathname.startsWith('/blog/')) return <div className="w-full min-w-0 flex-1">{children}</div>;
+  if (pathname === '/cart' || pathname === '/checkout' || pathname === '/blog' || pathname.startsWith('/blog/') || pathname === '/account' || pathname.startsWith('/account/')) return <div className="w-full min-w-0 flex-1">{children}</div>;
 
   return (
     <AnimatePresence mode="wait">

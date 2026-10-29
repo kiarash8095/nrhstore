@@ -23,7 +23,7 @@ UI دو نسخه دارد: `saved` آخرین پاسخ موفق سرور و `dra
 
 **ورود مدیر چگونه کار می‌کند؟**
 
-`BANNERS_ADMIN_USERNAME`، رمز حداقل ۱۲ کاراکتری و `BANNERS_ADMIN_SESSION_SECRET` حداقل ۳۲ کاراکتری، متغیرهای سروری‌اند. تنظیم ضعیف یا ناقص ورود را غیرفعال می‌کند. [admin-session.ts](D:/Projects2/nrh_store_nextjs/features/banners/server/admin-session.ts) توکن امضاشده HMAC با expiry و nonce می‌سازد؛ این توکن مدل رمزنگاری نشست مشتری نیست.
+`BANNERS_ADMIN_USERNAME`، رمز حداقل ۸ کاراکتری و `BANNERS_ADMIN_SESSION_SECRET` حداقل ۳۲ کاراکتری، متغیرهای سروری‌اند. تنظیم ضعیف یا ناقص ورود را غیرفعال می‌کند. [admin-session.ts](D:/Projects2/nrh_store_nextjs/features/banners/server/admin-session.ts) توکن امضاشده HMAC با expiry و nonce می‌سازد؛ این توکن مدل رمزنگاری نشست مشتری نیست.
 
 کوکی `HttpOnly`، `SameSite=Strict` و در production `Secure` است؛ اعتبار آن هشت ساعت است. تغییر credential یا secret، امضای نشست‌های قبلی را نامعتبر می‌کند. ورود rate limit دارد؛ این limiter فعلاً حافظه‌ای است.
 

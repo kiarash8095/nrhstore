@@ -10,7 +10,7 @@ import { SticksToFooter } from "./StoreBenefits";
 
 const quickAccessMenu = [
   { id: 1, title: "فروشگاه", href: "/products" },
-  { id: 2, title: "پنل کاربری", href: "/dashboard" },
+  { id: 2, title: "پنل کاربری", href: "/account" },
   { id: 3, title: "دسته‌بندی‌ها", href: "/categories" },
   { id: 4, title: "تماس با ما", href: "/contact-us" },
   { id: 5, title: "مجله نوین رایانه", href: "/blog" },

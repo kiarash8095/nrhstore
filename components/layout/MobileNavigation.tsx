@@ -110,7 +110,7 @@ export default function MobileNavigation({ cart }: Props) {
                       onClick={() => {
                         setIsMenuOpen(false);
 
-                        if (isAuthenticated) router.push("/dashboard");
+                        if (isAuthenticated) router.push("/account");
                         else void openAuth();
                       }}
                       className="flex w-full cursor-pointer flex-col items-center disabled:cursor-wait disabled:opacity-60"

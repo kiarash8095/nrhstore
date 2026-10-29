@@ -64,7 +64,8 @@ export function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
 
-          <div className="relative my-4 h-44 w-full shrink-0 overflow-hidden rounded-xl bg-gray-50 sm:h-48">
+          <div className="relative my-4 h-44 w-full shrink-0 overflow-hidden rounded-xl
+           sm:h-48">
             {image ? (
               <Image
                 src={image}

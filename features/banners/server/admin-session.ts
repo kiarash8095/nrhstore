@@ -2,16 +2,18 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { createHash,createHmac,randomBytes,timingSafeEqual } from "node:crypto";
+import { ConfigurationError, validateBannerAdminEnvironment } from "@/lib/server/runtime-config.cjs";
 
 export const ADMIN_COOKIE = "nrh_banners_admin";
 export const ADMIN_SESSION_SECONDS = 60 * 60 * 8;
 
 export function adminConfig() {
-  const username = process.env.BANNERS_ADMIN_USERNAME;
-  const password = process.env.BANNERS_ADMIN_PASSWORD;
-  const secret = process.env.BANNERS_ADMIN_SESSION_SECRET;
-  if (!username || !password || !secret || password.length < 12 || secret.length < 32) return null;
-  return { username, password, secret };
+  try {
+    return validateBannerAdminEnvironment();
+  } catch (error) {
+    if (error instanceof ConfigurationError) return null;
+    throw error;
+  }
 }
 
 function sameValue(left: string, right: string) {

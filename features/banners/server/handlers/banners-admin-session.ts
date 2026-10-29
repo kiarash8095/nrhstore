@@ -3,6 +3,7 @@ import { bannerError,bannerJson,checkBannerOrigin } from "@/features/banners/ser
 import { consumeRateLimit } from "@/lib/server/rate-limit";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import { boundedJson } from "@/lib/http/bounded-json";
 
 
 
@@ -21,7 +22,18 @@ export async function POST(request: NextRequest) {
     return response;
   }
   if (Number(request.headers.get("content-length")) > 4096) return bannerError("درخواست بیش از حد بزرگ است.", 413);
-  const input = loginSchema.safeParse(await request.json().catch(() => null));
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    return bannerError("فرمت درخواست معتبر نیست.", 415);
+  }
+  let payload: unknown;
+  try {
+    payload = await boundedJson(new Response(request.body), 4096);
+  } catch (error) {
+    return error instanceof Error && error.message === "Response exceeds limit"
+      ? bannerError("درخواست بیش از حد بزرگ است.", 413)
+      : bannerError("درخواست معتبر نیست.", 400);
+  }
+  const input = loginSchema.safeParse(payload);
   if (!input.success) return bannerError("نام کاربری و رمز عبور را وارد کنید.", 400);
   if (!checkAdminCredentials(input.data.username, input.data.password)) {
     return bannerError("نام کاربری یا رمز عبور اشتباه است.", 401);

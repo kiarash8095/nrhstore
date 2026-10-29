@@ -31,15 +31,16 @@ const fields = [
   ['postcode', 'کد پستی ۱۰ رقمی', 'postal-code'],
 ] as const;
 
-export function CheckoutAddress({ cart, busy, saved, onSave, onEdit }: {
+export function CheckoutAddress({ cart, busy, saved, onSave, onEdit, initialAddress }: {
   cart: WooCommerceCart;
   busy: boolean;
   saved: boolean;
+  initialAddress?: CustomerInput['billing_address'];
   onSave: (address: CustomerInput['billing_address']) => Promise<void>;
   onEdit: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(([name]) => [name,
-    toAsciiDigits((cart.needs_shipping && name !== 'email' ? cart.shipping_address[name as keyof typeof cart.shipping_address] : '') || cart.billing_address[name] || ''),
+    toAsciiDigits(initialAddress && name in initialAddress ? initialAddress[name] || '' : (cart.needs_shipping && name !== 'email' ? cart.shipping_address[name as keyof typeof cart.shipping_address] : '') || cart.billing_address[name] || ''),
   ])));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);

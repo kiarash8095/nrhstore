@@ -4,10 +4,14 @@ const path = require('node:path');
 const { randomBytes, randomUUID } = require('node:crypto');
 const { setTimeout: delay } = require('node:timers/promises');
 const { loadEnvConfig } = require('@next/env');
-const { ConfigurationError, validateBuildEnvironment, validateRuntimeEnvironment } = require('../lib/server/runtime-config.cjs');
+const { parseEnv } = require('node:util');
+const { ConfigurationError, validateBuildEnvironment, validateRuntimeEnvironment, BANNERS_ADMIN_DEVELOPMENT_CREDENTIALS } = require('../lib/server/runtime-config.cjs');
+
+// Match Next/dotenv's CRLF and legacy CR parsing without rewriting stored values.
+const parseSettings = text => parseEnv(text.replace(/\r\n?/g, '\n'));
 
 // Explicit development setup only. Production never invents or rotates secrets.
-async function prepareDevelopmentEnvironment(root) {
+async function prepareDevelopmentEnvironment(root, suppliedEnv = {}) {
   const target = path.join(root, '.env.local');
   const lock = target + '.setup.lock';
   let handle;
@@ -28,14 +32,29 @@ async function prepareDevelopmentEnvironment(root) {
       text = (await fs.readFile(path.join(root, '.env.example'), 'utf8'))
         .replace(/^NEXT_PUBLIC_SITE_URL=.*$/m, 'NEXT_PUBLIC_SITE_URL=http://localhost:3000');
     }
-    const match = text.match(/^\s*(?:export\s+)?AUTH_SESSION_SECRET\s*=([^\r\n]*)/m);
-    const value = match?.[1].trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2').trim();
-    if (value) {
-      // A provided value, including an invalid one, must never be silently rotated.
-      return false;
+    const defaults = {
+      AUTH_SESSION_SECRET: () => randomBytes(32).toString('hex'),
+      BANNERS_ADMIN_USERNAME: () => BANNERS_ADMIN_DEVELOPMENT_CREDENTIALS.username,
+      BANNERS_ADMIN_PASSWORD: () => BANNERS_ADMIN_DEVELOPMENT_CREDENTIALS.password,
+      BANNERS_ADMIN_SESSION_SECRET: () => randomBytes(32).toString('hex'),
+    };
+    let updated = text;
+    for (const [name, createValue] of Object.entries(defaults)) {
+      // Horizontal whitespace only: \s can consume the LF of CRLF and join a key to a comment.
+      const match = updated.match(new RegExp('^[\\t ]*(?:export[\\t ]+)?' + name + '[\\t ]*=([^\\r\\n]*)', 'm'));
+      const value = parseSettings(updated)[name];
+      // Preserve explicit credentials (including invalid values) and higher-priority env sources.
+      if (value?.trim() || suppliedEnv[name]?.trim()) continue;
+      const comment = match?.[1].match(/(?:^|[\t ]+)(#.*)$/)?.[1];
+      const line = name + '=' + createValue() + (comment ? ' ' + comment : '');
+      updated = match ? updated.replace(match[0], () => line) : updated.trimEnd() + '\n' + line + '\n';
     }
-    const line = 'AUTH_SESSION_SECRET=' + randomBytes(32).toString('hex');
-    const updated = match ? text.replace(match[0], line) : text.trimEnd() + '\n' + line + '\n';
+    if (updated === text) return false;
+    const provided = Object.fromEntries(Object.entries(suppliedEnv).filter(([, value]) => typeof value === 'string' && value.trim()));
+    const candidate = { ...parseSettings(updated), ...provided };
+    if (candidate.NODE_ENV === 'production') throw new Error('Automatic environment setup is only allowed for local development.');
+    // Validate the complete candidate before writing, so an invalid explicit value leaves the file intact.
+    validateRuntimeEnvironment({ env: candidate, production: false });
     temporary = target + '.' + randomUUID() + '.tmp';
     await fs.writeFile(temporary, updated, { flag: 'wx', mode: 0o600 });
     await fs.rename(temporary, target);
@@ -49,7 +68,8 @@ async function prepareDevelopmentEnvironment(root) {
 }
 
 async function checkStorage(root, env = process.env) {
-  for (const directory of [env.AUTH_SESSION_DATA_DIR || 'data/auth', env.CART_LOCK_DIR || 'data/cart-locks']) {
+  const banners = env.BANNERS_DATA_DIR || 'data/banners';
+  for (const directory of [env.AUTH_SESSION_DATA_DIR || 'data/auth', env.CART_LOCK_DIR || 'data/cart-locks', banners, path.join(banners, 'images')]) {
     const resolved = path.resolve(root, directory);
     await fs.mkdir(resolved, { recursive: true, mode: 0o700 });
     const probe = path.join(resolved, '.write-check-' + randomUUID());
@@ -89,13 +109,14 @@ async function main() {
     console.log('[environment] Build configuration is ready. Private session secrets and writable storage are checked when the server starts.');
     return;
   }
-  if (setup && !process.env.AUTH_SESSION_SECRET?.trim()) {
-    if (await prepareDevelopmentEnvironment(root)) console.log('[environment] Saved a development session key in .env.local. Existing settings were preserved.');
+  if (setup) {
+    if (await prepareDevelopmentEnvironment(root, process.env)) console.log('[environment] Saved missing development settings in .env.local. Existing credentials and session keys were preserved.');
     loadEnvConfig(root, true, logger, true);
   }
   const config = validateRuntimeEnvironment({ production });
   await checkStorage(root);
   console.log('[environment] Session configuration and writable storage are ready (' + (production ? 'production' : 'development') + ').');
+  console.log('[environment] Banner administrator is configured. Local development defaults are documented in features/banners/README.md; production requires private credentials.');
   if (process.argv.includes('--network')) {
     await checkBackend(config);
     console.log('[environment] Real WordPress auth routes and WooCommerce guest sessions are reachable. No SMS was sent and no item was added.');

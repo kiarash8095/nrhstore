@@ -2,6 +2,7 @@ import { PageTransition } from "@/components/common/PageTransition";
 import Footer from "@/components/layout/SiteFooter";
 import { HeaderSkeleton } from "@/components/layout/HeaderSkeleton";
 import { StoreHeader } from "@/components/layout/StoreHeader";
+import { StoreOnly } from '@/components/layout/StoreOnly';
 import MobileMenu from "@/components/layout/MobileNavigation";
 import { YekanBakh } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
@@ -50,14 +51,14 @@ export default function RootLayout({
           {/* AuthProvider چرخه‌ی حیات نشست را مدیریت می‌کند و مودال ورود را یک‌بار رندر می‌کند */}
             {/* <HydrationBoundary state={dehydrate(queryClient)}> */}
               {/* هدر داده‌محور است؛ با مرز Suspense جدا، پوسته‌ی سایت بدون انتظار برای دسته‌ها رندر می‌شود */}
-              <Suspense fallback={<HeaderSkeleton />}>
+              <StoreOnly><Suspense fallback={<HeaderSkeleton />}>
                 <StoreHeader />
-              </Suspense>
+              </Suspense></StoreOnly>
 
               <PageTransition>{children}</PageTransition>
-              <MobileMenu />
+              <StoreOnly><MobileMenu /></StoreOnly>
 
-              <Footer />
+              <StoreOnly><Footer /></StoreOnly>
             {/* </HydrationBoundary> */}
         </AppProviders>
       </body>

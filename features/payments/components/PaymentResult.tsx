@@ -44,6 +44,7 @@ export function PaymentResult({ orderId }: { orderId: number | null }) {
         <p role="status" className="font-bold text-emerald-700">پرداخت سفارش تأیید شد.</p>
         <p className="mt-4">شماره سفارش: {data.order_id.toLocaleString('fa-IR')}</p>
         {data.reference && <p className="mt-3">کد پیگیری: {data.reference}</p>}
+        <Link href={'/account/orders/' + data.order_id} className="mt-6 inline-flex rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white">مشاهده جزئیات سفارش</Link>
       </> : <>
         <CircleAlert className="mx-auto mb-4 size-10 text-orange-600" />
         <p role="status" className="leading-8">پرداخت این سفارش هنوز تأیید نشده است. اگر وجه کسر شده، دوباره پرداخت نکنید و وضعیت سفارش را بررسی کنید.</p>

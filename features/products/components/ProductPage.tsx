@@ -17,6 +17,7 @@ import { productStructuredData } from "../seo/structured-data";
 import { absoluteUrl } from "@/configs/site";
 import { categoryPath } from "@/lib/urls";
 import { e2p } from "@/utils/numbers";
+import { FavoriteButton } from '@/features/user-panel';
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -80,6 +81,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <h1 id="product-title" className="text-xl font-black leading-9 text-gray-900 sm:text-2xl">
                 {removeExtra(product.name)}
               </h1>
+              <FavoriteButton productId={product.id} />
 
               <a href="#product-reviews" className="mt-3 inline-flex items-center gap-2 rounded-lg text-sm text-gray-600 transition hover:text-orange-600 focus-visible:outline-2 focus-visible:outline-orange-500">
                 <FiStar className="size-4 fill-orange-400 text-orange-400" aria-hidden="true" />

@@ -32,6 +32,7 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
   await page.route(origin + '/api/**', async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.pathname === '/api/auth/session') return authenticated ? fulfill(route, { status: 'authenticated', session: { user: { id: '7', phone: '', firstName: 'کاربر آزمایشی' } } }) : fulfill(route, { error: { code: 'session_expired', message: 'وارد حساب شوید.' } }, 401);
+    if (url.pathname === '/api/account/addresses') return fulfill(route, { addresses: [{ id: 101, title: 'خانه آزمایشی', first_name: 'سارا', last_name: 'رضایی', phone: '09123456789', state: 'HDN', city: 'همدان', address: 'خیابان نمونه، پلاک ۱۲', postcode: '6511111111', is_default: true }] });
     if (url.pathname === '/api/auth/login') {
       assert.equal(request.method(), 'POST'); logins++; authenticated = true;
       cart = { ...cart, account_sync_pending: true };
@@ -86,11 +87,13 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
   const captureCheckout = async name => {
     if (await page.getByRole('button', { name: 'بستن اعلان', exact: true }).count()) await page.getByRole('button', { name: 'بستن اعلان', exact: true }).click();
     await page.evaluate(async () => {
-      window.scrollTo({ top: 0, behavior: 'instant' });
       await document.fonts.ready;
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      document.documentElement.style.overflowAnchor = 'none';
+      window.scrollTo({ top: 0, behavior: 'instant' });
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect.poll(() => page.evaluate(() => { window.scrollTo({ top: 0, behavior: 'instant' }); return window.scrollY; })).toBe(0);
     await page.screenshot({ path: path.join(output, name), fullPage: true });
   };
   try {
@@ -127,6 +130,14 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     await page.goto(origin + '/checkout', { waitUntil: 'domcontentloaded', timeout: 90000 });
     await expect.poll(() => merges).toBe(1);
     results.guest_cart_transfer = 'passed; one explicit POST after authenticated cart read';
+    const beforeSavedAddress = addressWrites;
+    await page.getByRole('button', { name: /خانه آزمایشی/ }).click();
+    await expect(page.locator('input[name="first_name"]')).toHaveValue('سارا');
+    await expect(page.locator('input[name="address_1"]')).toHaveValue('خیابان نمونه، پلاک 12');
+    await expect(page.locator('select[name="state"]')).toHaveValue('HDN');
+    await expect(page.getByRole('button', { name: 'ادامه به مرحله پرداخت', exact: true })).toBeDisabled();
+    assert.equal(addressWrites, beforeSavedAddress, 'Selecting a saved address must require explicit review and save.');
+    results.saved_account_address = 'passed; account address prefills checkout, no write or next stage until review and save';
     await captureCheckout('checkout-address-desktop.png');
     const values = { first_name: 'کاربر', last_name: 'آزمایشی', phone: '09000000000', email: 'test@example.invalid', city: 'همدان', address_1: 'آدرس آزمایشی', postcode: '6511111111' };
     for (const [name, value] of Object.entries(values)) await page.locator('input[name="' + name + '"]').fill(value);
@@ -192,6 +203,7 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     await page.getByRole('button', { name: 'بررسی دوباره وضعیت' }).click();
     await expect(page.getByText('پرداخت سفارش تأیید شد.', { exact: true })).toBeVisible();
     await expect(page.getByText('کد پیگیری: 12345678')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'مشاهده جزئیات سفارش', exact: true })).toHaveAttribute('href', '/account/orders/55');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(async () => {
       window.scrollTo(0, 0);

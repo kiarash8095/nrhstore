@@ -1,17 +1,37 @@
 # Banner administration
 
-Persian learning guide: [بنرهای خانه و پنل مدیریت](D:/Projects2/nrh_store_nextjs/docs/banners-learning-fa.md).
+Persian learning guide: [بنرهای خانه و پنل مدیریت](../../docs/banners-learning-fa.md).
 
 Open `/banners-admin`. Unauthenticated requests redirect to `/banners-admin/login`.
 This administrator is independent of the store's customer/WordPress login.
 
 ## Local setup
 
-Set these server-only values in `.env.local`, then restart `npm run dev`:
+With Node.js 20.19 or newer, a fresh clone can run `npm ci` followed by
+`npm run dev`. Predev creates missing local settings in the ignored `.env.local`.
+Open `http://localhost:3000/banners-admin/login` with this public development account:
+
+| Username | Password |
+| --- | --- |
+| `admin` | `BannersDev123!` |
+
+The session secret is random once per installation and persists across restarts.
+The account is not tied to the original developer or machine. Existing configured
+credentials, environment overrides, comments and secrets are preserved. Run
+`npm run setup:env` to complete missing settings without starting the server.
+An explicit invalid value fails preflight and is never silently replaced.
+The default development command binds to `127.0.0.1`.
+
+## Production and local production preview
+
+`npm run build` compiles without private runtime credentials and never writes or
+generates environment settings. A build does not start the server. Provision these
+server-only values before `npm run start`; use the host environment or an ignored
+`.env.production.local` for a local production preview:
 
 ```dotenv
 BANNERS_ADMIN_USERNAME=admin
-BANNERS_ADMIN_PASSWORD=<a unique password of at least 12 characters>
+BANNERS_ADMIN_PASSWORD=<a unique password of at least 8 characters>
 BANNERS_ADMIN_SESSION_SECRET=<a random secret of at least 32 characters>
 ```
 
@@ -21,7 +41,16 @@ Generate a secret with:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Missing or weak configuration disables login. Sessions use an HttpOnly,
+Also provision `AUTH_SESSION_SECRET`, the frontend `NEXT_PUBLIC_SITE_URL` and
+writable persistent storage as described in [the setup guide](../../docs/banners-admin-setup-fa.md).
+Prestart and Next instrumentation validate the full runtime configuration before
+serving traffic. The public development password is explicitly rejected in production,
+including `next start` on localhost. Set a private password for that preview.
+The same production signing keys must be supplied to every worker of that deployment.
+No private password or signing key belongs in Git or a `NEXT_PUBLIC_` variable.
+
+Missing or invalid configuration fails startup with the relevant variable name
+instead of first appearing as a disabled login form. Sessions use an HttpOnly,
 SameSite=Strict cookie, expire after eight hours, and use Secure in production.
 Changing the username, password or secret invalidates existing sessions. Mutation
 endpoints verify both the session and request origin. Login attempts are limited
@@ -85,6 +114,13 @@ already tracked before this feature, `.gitignore` does not untrack it: keep secr
 changes out of commits.
 
 ## Verification
+
+`npm run test:banners:auth` runs isolated credential, session, CSRF, body-limit and
+rate-limit checks without modifying banners. `npm run test:environment` checks
+fresh-device setup, persistence, concurrent setup and production preflight.
+`npm run test:banners:portability` uses isolated project copies and Playwright to
+check actual dev login, a build without private env files, production login and a
+server restart. It never copies the developer's `.env.local` or publishes banners.
 
 With the local server running, run `node features/banners/tests/banners.integration.cjs` for
 authentication, authorization, upload validation, publication, persistence and

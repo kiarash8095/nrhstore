@@ -127,7 +127,16 @@ export function useAuthActions() {
     broadcastAuthEvent("logout");
   }
 
+  async function refreshSession() {
+    const snapshot = session.getState();
+    const value = await authApi.getSession();
+    if (session.getState() !== snapshot) return;
+    if (value) session.getState().setSession(value);
+    else { session.getState().setGuest(); queryClient.clear(); }
+  }
+
   return {
+    refreshSession,
     openAuth: (options?: { nextPath?: string | null }) => flow.getState().open(options),
     closeAuth: () => flow.getState().close(),
     beginLogin, startRegister, chooseOtpLogin, verifyOtp, resendOtp,

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, CreditCard, LoaderCircle, MapPin, ShieldCheck, Truck } from 'lucide-react';
 import { getAuthIdentity, useAuth, useAuthActions } from '@/features/auth';
+import { CheckoutSavedAddresses } from '@/features/user-panel';
 import { useCart } from '../hooks/use-cart';
 import { useCartUI } from './CartProvider';
 import { CartFeedback } from './Cart';
@@ -21,7 +22,7 @@ import { CartClientError, payCheckout } from '../api/cart.api';
 import { allowedPaymentRedirect, checkoutSnapshot } from '../utils/checkout';
 import { cartKeys } from '../api/cart.keys';
 import { cartText, money } from '../utils/cart.utils';
-import type { WooCommerceCart } from '../contracts';
+import type { CustomerInput, WooCommerceCart } from '../contracts';
 
 function addressStamp(cart: WooCommerceCart) {
   return JSON.stringify([cart.billing_address, cart.shipping_address]);
@@ -38,6 +39,7 @@ export function Checkout({ requestedStep = 'shipping' }: { requestedStep?: 'ship
   const attempt = useRef<{ identity: string; hash: string; id: string } | null>(null);
   const paymentInFlight = useRef(false);
   const [savedAddress, setSavedAddress] = useState<{ identity: string; stamp: string } | null>(null);
+  const [prefill, setPrefill] = useState<{ identity: string; revision: number; address: CustomerInput['billing_address'] } | null>(null);
   const prepared = useMutation({
     mutationKey: cartKeys.mutations,
     scope: { id: 'cart-writes' },
@@ -132,7 +134,8 @@ export function Checkout({ requestedStep = 'shipping' }: { requestedStep?: 'ship
               {cart.needs_shipping && <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">{cart.shipping_rates.map((pack, index) => <p key={String(pack.package_id ?? index)} className="flex items-center gap-2 text-xs leading-6 text-gray-600"><Truck className="size-4 shrink-0" />{cartText(pack.name || 'بسته ارسال')}: {pack.shipping_rates?.filter(rate => rate.selected).map(rate => cartText(rate.name)).join('، ')}</p>)}</div>}
             </section>
           </> : <>
-            <CheckoutAddress key={state.queryKey[1]} cart={cart} busy={locked} saved={addressSaved}
+            <CheckoutSavedAddresses busy={locked} onSelect={address => { prepared.reset(); setSavedAddress(null); setPrefill(current => ({ identity: state.queryKey[1], revision: (current?.revision || 0) + 1, address })); }} />
+            <CheckoutAddress key={state.queryKey[1] + ':' + (prefill?.identity === state.queryKey[1] ? prefill.revision : 0)} initialAddress={prefill?.identity === state.queryKey[1] ? prefill.address : undefined} cart={cart} busy={locked} saved={addressSaved}
               onEdit={() => { setSavedAddress(null); prepared.reset(); }}
               onSave={async billing => {
                 prepared.reset();
@@ -142,6 +145,7 @@ export function Checkout({ requestedStep = 'shipping' }: { requestedStep?: 'ship
                 const updated = await state.updateCustomer({ billing_address: billing, shipping_address: shipping });
                 if (getAuthIdentity() !== identity) return;
                 setSavedAddress({ identity, stamp: addressStamp(updated) });
+                setPrefill(null);
                 ui.notify('آدرس ذخیره شد و هزینه ارسال به‌روز شد.', 'success');
               }} />
             <CheckoutShipping cart={cart} addressSaved={addressSaved} busy={locked} onSelect={input => { prepared.reset(); void state.selectShipping(input).catch(() => {}); }} />

@@ -26,6 +26,7 @@ export function UserMenu({ user }: { user: AuthUser }) {
     try {
       await logout();
       // سرور کامپوننت‌های محافظت‌شده باید بفهمند کوکی پاک شده است
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Logout discards private router caches and prior-page memory.
       window.location.assign("/");
     } catch {
       setError("خروج انجام نشد. دوباره تلاش کنید.");
@@ -64,7 +65,7 @@ export function UserMenu({ user }: { user: AuthUser }) {
             </div>
 
             <Menu.LinkItem
-              render={<Link href="/dashboard" />}
+              render={<Link href="/account" />}
               className="mt-1 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-xs text-gray-700 outline-none transition hover:bg-orange-50 hover:text-orange-600 data-[highlighted]:bg-orange-50 data-[highlighted]:text-orange-600"
             >
               <LayoutDashboard className="size-4" />

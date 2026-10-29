@@ -1,1 +1,3 @@
-export { AccountPage as default } from "@/features/account/server";
+import { redirect } from 'next/navigation';
+
+export default function LegacyDashboard() { redirect('/account'); }

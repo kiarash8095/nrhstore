@@ -1,15 +1,17 @@
 import 'server-only';
 import { cache } from 'react';
-import type { Products } from '../types/product.types';
+import type { ProductCardData, Products } from '../types/product.types';
+import { PRODUCT_CARD_FIELDS } from '../constants/catalog';
 import { wcFetch, wcResponse } from '@/lib/woocommerce/store-client';
 import { WooCommerceApiError } from '@/lib/woocommerce/api-error';
 import { decodeSlug } from '@/lib/urls';
 
-export async function getProductCollection(page = 1, categoryId?: number, perPage = 20) {
+async function productCollection<T>(page: number, categoryId: number | undefined, perPage: number, fields?: string) {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
   if (categoryId) params.set('category', String(categoryId));
+  if (fields) params.set('_fields', fields);
   const response = await wcResponse(`/products?${params}`);
-  const items = await response.json() as Products[];
+  const items = await response.json() as T[];
   if (!Array.isArray(items)) throw new WooCommerceApiError(502, 'invalid_response');
   return {
     items,
@@ -17,6 +19,14 @@ export async function getProductCollection(page = 1, categoryId?: number, perPag
     totalPages: Number(response.headers.get('X-WP-TotalPages') || 1),
     page,
   };
+}
+
+export function getProductCollection(page = 1, categoryId?: number, perPage = 20) {
+  return productCollection<Products>(page, categoryId, perPage);
+}
+
+export function getProductCardCollection(page = 1, categoryId?: number, perPage = 20) {
+  return productCollection<ProductCardData>(page, categoryId, perPage, PRODUCT_CARD_FIELDS);
 }
 
 export const getProducts = async () => (await getProductCollection()).items;

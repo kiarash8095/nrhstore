@@ -35,7 +35,7 @@ export function toErrorResponse(error: unknown, context: string): NextResponse {
     // خطای ۵xx وردپرس برای ما «در دسترس نبودن» است، نه پیام خام
     if (error.status >= 500) {
       console.error(`[auth:${context}]`, error.code);
-      return jsonAuthError("backend_unavailable", error.message, error.status);
+      return jsonAuthError(error.code === "configuration_error" ? "configuration_error" : "backend_unavailable", error.message, error.status);
     }
 
     return jsonAuthError(error.code, error.message, error.status, error.fields);

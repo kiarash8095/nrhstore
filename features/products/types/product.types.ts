@@ -51,3 +51,8 @@ export interface Products {
     review_count: number;
     attributes: ProductAttributes[];
 }
+
+export type ProductCardData = Pick<
+    Products,
+    'id' | 'name' | 'slug' | 'images' | 'prices' | 'average_rating' | 'is_in_stock' | 'review_count'
+>;

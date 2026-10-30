@@ -81,6 +81,7 @@ export function authError(
 
 /** الگوهای کد/پیام خطای پلاگین → کد داخلی ما */
 const ERROR_PATTERNS: Array<{ keywords: string[]; code: AuthErrorCode }> = [
+  { keywords: ["boom_bad_origin"], code: "configuration_error" },
   { keywords: ["کد اشتباه است یا منقضی شده"], code: "otp_invalid" },
   { keywords: ["email_exists", "ایمیل قبلاً", "ایمیل وجود دارد", "ایمیل قبلا"], code: "email_exists" },
   { keywords: ["incorrect_password", "invalid_credentials", "wrong_password", "رمز عبور اشتباه", "نام کاربری یا رمز عبور اشتباه"], code: "invalid_credentials" },
@@ -90,7 +91,7 @@ const ERROR_PATTERNS: Array<{ keywords: string[]; code: AuthErrorCode }> = [
   { keywords: ["otp_invalid", "invalid_otp", "invalid_code", "wrong_otp", "کد اشتباه", "کد صحیح نمی"], code: "otp_invalid" },
   { keywords: ["too_many_attempts", "rate_limit", "too_many_requests", "flood", "زیاد"], code: "rate_limited" },
   { keywords: ["user_disabled", "account_disabled", "deactivated", "غیرفعال"], code: "account_disabled" },
-  { keywords: ["invalid_token", "expired_token", "not_logged_in", "session_expired", "unauthorized", "لاگین نیست"], code: "session_expired" },
+  { keywords: ["invalid_token", "expired_token", "not_logged_in", "session_expired", "rest_cookie_invalid_nonce", "unauthorized", "لاگین نیست"], code: "session_expired" },
 ];
 
 /** کد خطا را از روی پیام/کد بک‌اند و در نهایت از روی وضعیت HTTP حدس می‌زند */
@@ -99,6 +100,7 @@ export function mapBackendErrorCode(
   rawMessage: string | undefined,
   status: number,
 ): AuthErrorCode {
+  if (status >= 500) return "backend_unavailable";
   const haystack = `${rawCode ?? ""} ${rawMessage ?? ""}`.toLowerCase();
   const found = ERROR_PATTERNS.find((pattern) =>
     pattern.keywords.some((keyword) => haystack.includes(keyword.toLowerCase())),
@@ -107,11 +109,10 @@ export function mapBackendErrorCode(
 
   if (status === 400 || status === 422) return "invalid_input";
   if (status === 401) return "invalid_credentials";
-  if (status === 403) return "otp_invalid";
+  // A policy/origin denial can happen before an OTP has even been sent.
+  if (status === 403) return "backend_unavailable";
   if (status === 404) return "phone_not_found";
   if (status === 409) return "phone_exists";
   if (status === 429) return "rate_limited";
-  if (status >= 500) return "backend_unavailable";
-
   return "unexpected_error";
 }

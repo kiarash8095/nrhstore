@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getProductCollection } from '../api/products.api';
+import { getProductCardCollection } from '../api/products.api';
 import { ProductCard } from './ProductCard';
 import { Pagination } from '@/components/common/Pagination';
 import { parsePage } from '@/lib/urls';
@@ -7,7 +7,7 @@ import { parsePage } from '@/lib/urls';
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
   const page = parsePage((await searchParams).page);
   if (!page) notFound();
-  const collection = await getProductCollection(page);
+  const collection = await getProductCardCollection(page);
   if (page > collection.totalPages) notFound();
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8">

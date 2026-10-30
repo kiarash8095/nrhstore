@@ -1,5 +1,6 @@
-import { Products } from "@/features/products/types/product.types";
+import type { ProductCardData } from "@/features/products/types/product.types";
 import { wcFetch } from "@/lib/woocommerce/store-client";
+import { PRODUCT_CARD_FIELDS } from "../constants/catalog";
 
 // export const getSpecificProducts= async(id:number) =>
 // {
@@ -27,12 +28,13 @@ import { wcFetch } from "@/lib/woocommerce/store-client";
 export const getSpecificProducts = async (
   id: number,
   limit: number = 10,
-): Promise<Products[]> => {
+): Promise<ProductCardData[]> => {
   const params = new URLSearchParams({
     category: String(id),
     per_page: String(limit),
+    _fields: PRODUCT_CARD_FIELDS,
   });
-  return wcFetch<Products[]>(`/products?${params.toString()}`, {
+  return wcFetch<ProductCardData[]>(`/products?${params.toString()}`, {
     next: {
       revalidate: 300,
     },

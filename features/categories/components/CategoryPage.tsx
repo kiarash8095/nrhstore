@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { getCategoryBySlug } from '../api/category.api';
 import { getAllCategories } from '../api/categories.api';
-import { getProductCollection } from '@/features/products/server';
+import { getProductCardCollection } from '@/features/products/server';
 import { ProductCard } from '@/features/products';
 import { Pagination } from '@/components/common/Pagination';
 import { JsonLd } from '@/components/common/JsonLd';
@@ -23,7 +23,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   if (decodeSlug(category.slug) !== decodeSlug(requestedSlug)) {
     permanentRedirect(pagePath(categoryPath(category.slug), page));
   }
-  const [collection, categories] = await Promise.all([getProductCollection(page, category.id), getAllCategories()]);
+  const [collection, categories] = await Promise.all([getProductCardCollection(page, category.id), getAllCategories()]);
   if (page > collection.totalPages) notFound();
   const path = categoryPath(category.slug);
   const children = categories.filter(item => item.parent === category.id);

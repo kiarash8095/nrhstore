@@ -14,7 +14,7 @@ export function PageTransition({ children }: PageTransitionProps) {
   if (pathname === '/cart' || pathname === '/checkout' || pathname === '/blog' || pathname.startsWith('/blog/') || pathname === '/account' || pathname.startsWith('/account/')) return <div className="w-full min-w-0 flex-1">{children}</div>;
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
         initial={{ opacity: 0, y: 20 }}

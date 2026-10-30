@@ -4,6 +4,8 @@ Persian learning guide: [ورود، بازیابی رمز و نشست مشتری
 
 Audited against `https://nrhstore.ir/wp-json/`, the site's public Boom JavaScript and the installed Next.js 16.2.12 documentation on 2026-10-13. Customer authentication is separate from the banner administrator at `/banners-admin`.
 
+Rechecked against the installed Next.js 16.4.2 guides and the live WordPress service on 2026-10-30. See [the BFF session audit](../../docs/auth-bff-session-audit-fa.md) for the origin fix, Vercel logout behavior and real browser verification.
+
 ## Actual upstream requests
 
 Base URL: `https://nrhstore.ir/wp-json/boom/v1`. Bodies are JSON. The REST index lists routes but does not declare their body fields, so these fields were checked against the site's client and live requests.
@@ -29,11 +31,15 @@ SMS password recovery must send the code directly to `/reset-password` with the 
 
 The browser calls `/api/auth/*` on this Next.js application. `features/auth/server/backend` owns the upstream requests; credentials and WordPress cookies never go into localStorage, React state or public environment variables. Login, signup and OTP verification must obtain backend cookies, synchronize the session and validate `/me` before returning an authenticated response. A backend `success: false`, missing cookies or missing numeric user ID cannot create a session.
 
+Boom checks its WordPress `Origin` even on public OTP requests. The BFF derives this upstream header from the configured WordPress destination and validates the browser origin separately. A missing upstream origin produces `boom_bad_origin` before SMS delivery. Origin failures remain configuration errors; unknown policy denials and upstream 5xx responses cannot become invalid OTP, password or session errors.
+
 WordPress REST cookie authentication also requires `X-WP-Nonce`. The server obtains it from the authenticated core action `GET /wp-admin/admin-ajax.php?action=rest-nonce`, then supplies it on REST requests. Without it WordPress treats the request as anonymous even when valid cookies exist. An expired nonce is renewed once. See [WordPress cookie authentication](https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/) and [the core nonce action](https://developer.wordpress.org/reference/functions/wp_ajax_rest_nonce/).
 
 The Next.js cookie contains the upstream cookie jar, nonce, random local session ID and expiry, encrypted and authenticated with AES-256-GCM. It excludes Boom's untrusted `me` profile cookie and contains no password. The cookie is `HttpOnly`, `SameSite=Lax`, has a bounded lifetime and is always `Secure` in production. Modified, unsigned, expired and pre-migration cookies are rejected. Rotating `AUTH_SESSION_SECRET` invalidates existing local sessions.
 
-WordPress remains the authority for identity and backend session validity. Next.js also stores local session revocations on persistent disk because the live audit showed that the Boom logout response could leave a previous cookie usable. Every encrypted version retains the same local session ID. Logout persists its revocation before clearing the browser cookie, even if the backend logout request fails. Revocations are checked in both the session API and DAL. Storage failures fail closed and cannot report a successful logout. A successful password reset also revokes the requesting local session; invalidating other WordPress sessions remains the backend's responsibility.
+WordPress remains the authority for identity and backend session validity. On Vercel (`VERCEL=1`), every authenticated read verifies the WordPress session without local revocation files. Logout calls WordPress and checks that `/me` rejects the original credentials before clearing the browser cookie. A success response that leaves the old session usable, an unavailable backend or a blocked nonce endpoint cannot report successful logout. This uses WordPress's shared session storage across function instances.
+
+On a single Node server, the existing persistent local revocation mechanism remains: every encrypted version retains the same local session ID, and logout records its revocation before clearing the cookie, even if upstream logout fails. Revocations are checked by the session API and DAL. Preserve these files and the stable session key across restarts. The current Vercel path explicitly confirms upstream revocation rather than relying on the older logout audit.
 
 `proxy.ts` only redirects when a session cookie is absent. It is not an authorization boundary. Every `/account` page uses `requireUser()` in `features/auth/server/dal.ts`, which checks revocation and verifies the backend user; `/dashboard` redirects to `/account`. Add the same DAL check to each future private page, Route Handler or Server Action, and check ownership/permissions again before reading or changing private resources. Hiding a client component is insufficient. The current customer DTO does not grant administrator permissions; banner administration has its own server-side guard.
 
@@ -59,7 +65,7 @@ Generate the secret locally with `node -e "console.log(require('node:crypto').ra
 
 Local revocations live in `data/auth/revoked` by default; filenames are validated random UUIDs and content is only an expiry timestamp. Preserve that directory across restarts. Expired records can be removed after their timestamp; never remove active records. If reducing the maximum session lifetime, rotate the encryption secret so older cookies cannot outlive their revocation records.
 
-This storage and the in-memory request limiter are intended for the current local/single-server deployment. Before deploying to multiple instances or an ephemeral/serverless host, replace revocations and rate-limit buckets with a shared persistent database/Redis store. A reverse proxy must overwrite `X-Forwarded-For`; never trust a browser-supplied forwarding header. WordPress's public endpoints also need backend rate limits; Next.js cannot protect requests sent directly to WordPress.
+Local file storage is for a single Node server. Vercel session invalidation uses WordPress as described above. The in-memory request limiter is still per process; a global limit across multiple instances needs a shared store or upstream/edge enforcement. A reverse proxy must overwrite `X-Forwarded-For`; never trust a browser-supplied forwarding header. WordPress's public endpoints also need backend rate limits; Next.js cannot protect requests sent directly to WordPress. Cart locks and banner uploads have separate storage requirements; this auth change does not migrate those stores.
 
 ## Verification
 

@@ -30,6 +30,7 @@ const jar = { wordpress_logged_in_test: "session%7Cvalid", wordpress_sec_test: "
 const user = { id: 47, name: "Test Customer", slug: "09123456789", email: "test@example.com" };
 let scenario;
 let calls;
+let upstreamRevoked;
 
 function json(data, status = 200, headers = {}) { return Response.json(data, { status, headers }); }
 function authenticated(data = { success: true }) {
@@ -45,9 +46,11 @@ global.fetch = async (input, options = {}) => {
   const headers = new Headers(options.headers);
   const body = options.body ? JSON.parse(options.body) : undefined;
   calls.push({ url, headers, body, method: options.method || "GET" });
+  assert.equal(headers.get("origin"), url.origin, "upstream origin must come from the configured WordPress destination");
   if (url.pathname.endsWith("admin-ajax.php")) {
     assert.equal(url.searchParams.get("action"), "rest-nonce");
     assert.ok(headers.get("cookie").includes("wordpress_logged_in_test"));
+    if (scenario === "logout-nonce-denied") return new Response("0", { status: 403 });
     if (scenario === "cached-nonce") return new Response(nonce, { headers: { 'X-LiteSpeed-Cache': 'hit' } });
     if (scenario === "large-nonce") return new Response(' '.repeat(129) + nonce);
     return new Response(nonce);
@@ -58,13 +61,17 @@ global.fetch = async (input, options = {}) => {
   assert.equal(options.cache, "no-store");
   assert.equal(options.redirect, "error");
   if (endpoint === "send-otp") {
+    if (scenario === "origin-denied") return json({ code: "boom_bad_origin", message: "Request origin rejected" }, 403);
+    if (scenario === "policy-denied") return json({ code: "rest_forbidden", message: "Request denied by backend policy" }, 403);
     await new Promise(resolve => setTimeout(resolve, 25));
     return json({ success: true });
   }
   if (endpoint === "verify-otp") {
+    if (scenario === "otp-backend-outage") return json({ code: "wrong_otp", message: "OTP backend failure" }, 503);
     return scenario === "bad-code" ? json({ error: "کد اشتباه است یا منقضی شده" }, 403) : authenticated();
   }
   if (endpoint === "login" || endpoint === "register") {
+    if (scenario === "origin-denied") return json({ code: "boom_bad_origin" }, 403);
     if (scenario === "cached-login") {
       const response = authenticated(); response.headers.set('CF-Cache-Status', 'HIT'); return response;
     }
@@ -76,9 +83,14 @@ global.fetch = async (input, options = {}) => {
   }
   if (endpoint === "sync-session" || endpoint === "me" || endpoint === "logout") {
     assert.ok(headers.get("cookie").includes("wordpress_logged_in_test"));
+    if (scenario === "origin-denied") return json({ code: "boom_bad_origin" }, 403);
+    if (scenario === "policy-denied") return json({ code: "rest_forbidden" }, 403);
+    if (scenario === "logout-nonce-denied" && endpoint === "me") return json({ code: "rest_cookie_invalid_nonce" }, 403);
+    if (upstreamRevoked && endpoint === "me") return json({ code: "not_logged_in" }, 401);
     if (scenario === "expired") return json({ code: "not_logged_in", message: "User not logged in" }, 401);
     if (scenario === "outage") return json({ message: "private backend error with secret details" }, 503);
     if (headers.get("X-WP-Nonce") !== nonce) return json({ code: "rest_cookie_invalid_nonce" }, 403);
+    if (endpoint === "logout" && scenario === "upstream-revocation") upstreamRevoked = true;
     if (endpoint === "me") {
       if (scenario === "cached-me") return json(user, 200, { 'Age': '60' });
       if (scenario === "large-me") return json({ ...user, padding: 'x'.repeat(65536) });
@@ -91,8 +103,10 @@ global.fetch = async (input, options = {}) => {
 };
 
 beforeEach(() => {
+  delete process.env.VERCEL;
   scenario = "success";
   calls = [];
+  upstreamRevoked = false;
   clearAllRateLimits();
   load.setCookieSnapshot({});
 });
@@ -224,6 +238,90 @@ test("concurrent OTP sends cannot bypass cooldown", async () => {
   assert.deepEqual(results.map(response => response.status).sort(), [200, 429]);
   assert.equal(calls.filter(call => call.url.pathname.endsWith("send-otp")).length, 1);
   assert.ok(results.find(response => response.status === 429).headers.get("retry-after"));
+});
+
+test("origin and unknown policy denials during OTP sending never become invalid-code errors", async () => {
+  for (const [mode, expected] of [["origin-denied", "configuration_error"], ["policy-denied", "backend_unavailable"]]) {
+    scenario = mode;
+    clearAllRateLimits();
+    const response = await invoke("send-otp", { phone: "09123456789", purpose: "login" });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, expected);
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal(calls.filter(call => call.url.pathname.endsWith("verify-otp")).length, 0);
+  }
+});
+
+test("origin failures during login and session reads stay configuration errors without changing cookies", async () => {
+  scenario = "origin-denied";
+  for (const [name, body, options] of [
+    ["login", { identifier: "customer", password: "test-password" }, {}],
+    ["session", undefined, { headers: { Cookie: sessionCookie() } }],
+  ]) {
+    const response = await invoke(name, body, options);
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, "configuration_error");
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+});
+
+test("backend outages and unknown session policy failures are not mistaken for user credential errors", async () => {
+  scenario = "otp-backend-outage";
+  const verify = await invoke("verify-otp", { phone: "09123456789", code: "1234" });
+  assert.equal(verify.status, 503);
+  assert.equal((await verify.json()).error.code, "backend_unavailable");
+  scenario = "policy-denied";
+  const session = await invoke("session", undefined, { headers: { Cookie: sessionCookie() } });
+  assert.equal(session.status, 503);
+  assert.equal((await session.json()).error.code, "backend_unavailable");
+  assert.equal(session.headers.get("set-cookie"), null);
+});
+
+test("Vercel logout revokes and checks the original WordPress session without local storage", async () => {
+  const previousDirectory = process.env.AUTH_SESSION_DATA_DIR;
+  process.env.VERCEL = "1";
+  process.env.AUTH_SESSION_DATA_DIR = __filename; // A file cannot be a writable session directory.
+  scenario = "upstream-revocation";
+  const replay = sessionCookie();
+  try {
+    const response = await invoke("logout", {}, { headers: { Cookie: replay } });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("set-cookie"), /Max-Age=0/);
+    assert.deepEqual(calls.map(call => call.url.pathname.split('/').pop()), ["logout", "me"]);
+    assert.equal((await invoke("session", undefined, { headers: { Cookie: replay } })).status, 401);
+  } finally {
+    delete process.env.VERCEL;
+    process.env.AUTH_SESSION_DATA_DIR = previousDirectory;
+  }
+});
+
+test("Vercel never reports logout success when WordPress leaves the original session valid", async () => {
+  const previousDirectory = process.env.AUTH_SESSION_DATA_DIR;
+  process.env.VERCEL = "1";
+  process.env.AUTH_SESSION_DATA_DIR = __filename;
+  const replay = sessionCookie();
+  try {
+    const response = await invoke("logout", {}, { headers: { Cookie: replay } });
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal((await invoke("session", undefined, { headers: { Cookie: replay } })).status, 200);
+  } finally {
+    delete process.env.VERCEL;
+    process.env.AUTH_SESSION_DATA_DIR = previousDirectory;
+  }
+});
+
+test("Vercel logout does not mistake a blocked nonce endpoint for authoritative session revocation", async () => {
+  process.env.VERCEL = "1";
+  scenario = "logout-nonce-denied";
+  try {
+    const response = await invoke("logout", {}, { headers: { Cookie: sessionCookie() } });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, "backend_unavailable");
+    assert.equal(response.headers.get("set-cookie"), null);
+  } finally {
+    delete process.env.VERCEL;
+  }
 });
 
 test("OTP attempts and password attempts have enforced server-side limits", async () => {

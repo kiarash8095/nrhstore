@@ -8,7 +8,7 @@ const originalFetch = global.fetch;
 afterEach(() => { global.fetch = originalFetch; });
 const urls = load('lib/urls.ts');
 const { getStoreApiUrl } = load('lib/wordpress/config.ts');
-const { getProductCollection, getProductDetails } = load('features/products/api/products.api.ts');
+const { getProductCollection, getProductCardCollection, getProductDetails } = load('features/products/api/products.api.ts');
 const { getAllCategories } = load('features/categories/api/categories.api.ts');
 const { getCategoryBySlug, getSpecificCategory } = load('features/categories/api/category.api.ts');
 const { productStructuredData } = load('features/products/seo/structured-data.ts');
@@ -35,6 +35,33 @@ test('pagination preserves upstream counts and catalog cache tags', async () => 
   const data = await getProductCollection(2, 55);
   assert.equal(data.total, 47);
   assert.equal(data.totalPages, 3);
+});
+
+test('card collections keep images, prices and pagination without requesting product descriptions', async () => {
+  const card = {
+    id: product.id, name: product.name, slug: product.slug,
+    images: [{ id: 1, src: 'https://cms.example.test/laptop.webp', name: 'Laptop' }],
+    prices: product.prices, is_in_stock: true, average_rating: '4.5', review_count: 3,
+  };
+  global.fetch = async (url, options) => {
+    const query = new URL(url).searchParams;
+    const fields = query.get('_fields').split(',');
+    assert.equal(query.get('page'), '2');
+    assert.equal(query.get('category'), '55');
+    assert.equal(query.get('per_page'), '20');
+    assert.ok(fields.includes('images'), 'keep complete image arrays for WordPress compatibility');
+    assert.ok(fields.includes('prices'));
+    assert.ok(!fields.includes('description'));
+    assert.ok(!fields.includes('attributes'));
+    assert.equal(options.next.revalidate, 300);
+    assert.ok(options.next.tags.includes('catalog'));
+    return json([card], { 'X-WP-Total': '47', 'X-WP-TotalPages': '3' });
+  };
+  const data = await getProductCardCollection(2, 55);
+  assert.deepEqual(data.items, [card]);
+  assert.equal(data.total, 47);
+  assert.equal(data.totalPages, 3);
+  assert.equal(data.page, 2);
 });
 
 test('a missing product is not confused with backend failure', async () => {

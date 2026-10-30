@@ -33,15 +33,18 @@ async function refreshNonce(jar: CookieJar): Promise<CookieJar> {
   let response: Response;
   let nonce: string;
   try {
-    response = await fetch(privateReadUrl(resolveAuthNonceUrl()), {
-      headers: { Cookie: jarToCookieHeader(jar), "Cache-Control": "no-cache, no-store", Pragma: "no-cache" },
+    const url = resolveAuthNonceUrl();
+    response = await fetch(privateReadUrl(url), {
+      headers: { Origin: new URL(url).origin, Cookie: jarToCookieHeader(jar), "Cache-Control": "no-cache, no-store", Pragma: "no-cache" },
       cache: "no-store", redirect: "error", signal: AbortSignal.timeout(getAuthConfig().timeoutMs),
     });
     rejectCachedResponse(response);
     nonce = (await boundedText(response, 128)).trim();
   } catch { throw authError("backend_unavailable"); }
   if (!response.ok || !/^[a-f0-9]{10}$/i.test(nonce)) {
-    throw authError([400, 401, 403].includes(response.status) || nonce === "0" ? "session_expired" : "backend_unavailable");
+    // Core admin-ajax returns 400/0 for the unregistered anonymous action.
+    // A policy denial or malformed nonce response does not prove session expiry.
+    throw authError(response.status === 400 && nonce === "0" ? "session_expired" : "backend_unavailable");
   }
   return { ...mergeSetCookies(jar, response.headers.getSetCookie()), wp_rest: nonce };
 }
@@ -61,6 +64,10 @@ export async function backendRequest(options: BackendRequestOptions): Promise<{ 
     let data: unknown;
     try {
       const url = resolveAuthUrl(options.endpoint);
+      // Boom checks its WordPress origin, including on public OTP requests.
+      // The BFF validates the browser origin separately; derive this upstream header
+      // from the configured destination and never from incoming browser headers.
+      headers.Origin = new URL(url).origin;
       response = await fetch(options.method === "GET" ? privateReadUrl(url) : url, {
         method: options.method || "POST", headers,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -83,8 +90,9 @@ export async function backendRequest(options: BackendRequestOptions): Promise<{ 
       const rawCode = typeof record.code === "string" ? record.code : "";
       const message = typeof record.message === "string" ? record.message : typeof record.error === "string" ? record.error : "";
       let code = mapBackendErrorCode(rawCode, message, response.status);
-      if (options.endpoint === "me" && [401, 403].includes(response.status)) code = "session_expired";
-      if (options.endpoint === "login" && response.status < 500 && !["rate_limited", "account_disabled"].includes(code)) code = "invalid_credentials";
+      if (options.endpoint === "me" && response.status === 401 && code !== "configuration_error") code = "session_expired";
+      if (options.endpoint === "login" && response.status < 500 &&
+          !["rate_limited", "account_disabled", "configuration_error", "backend_unavailable", "session_expired"].includes(code)) code = "invalid_credentials";
       throw authError(code);
     }
     const nonce = response.headers.get("X-WP-Nonce");

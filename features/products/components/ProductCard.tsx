@@ -4,11 +4,11 @@ import Link from "next/link";
 import { productPath } from '@/lib/urls';
 
 import { Card,CardContent } from "@/components/ui/card";
-import type { Products } from "@/features/products/types/product.types";
+import type { ProductCardData } from "@/features/products/types/product.types";
 import { sp } from "@/utils/numbers";
 
 interface ProductCardProps {
-  product: Products;
+  product: ProductCardData;
 }
 
 const namedEntities: Record<string, string> = {

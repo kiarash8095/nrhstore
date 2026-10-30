@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { AuthUserDto,LoginRequest,RegisterRequest,ResetPasswordEmailRequest,ResetPasswordRequest } from "../../contracts";
-import { AUTH_POLICY } from "../config";
+import { AUTH_POLICY,getAuthConfig } from "../config";
 import { isEmptyJar,type CookieJar } from "../cookies";
 import { isSessionRevoked,revokeSession } from "../session-store";
 import { backendRequest } from "./client";
@@ -29,6 +29,24 @@ async function readSession(jar: CookieJar): Promise<AuthSessionResult | null> {
     if (error instanceof AuthBackendError && error.status === 401) return null;
     throw error;
   }
+}
+
+async function revokeWordPressSession(jar: CookieJar): Promise<void> {
+  try {
+    await backendRequest({ endpoint: "logout", jar, context: "logout" });
+  } catch (error) {
+    // An already-expired session may be rejected by logout; verify it below.
+    if (!(error instanceof AuthBackendError && error.status === 401)) throw error;
+  }
+  try {
+    // Verify the original credentials, not the cleared cookies returned by logout.
+    // A successful logout response alone does not prove token revocation.
+    await backendRequest({ endpoint: "me", method: "GET", jar, context: "logout-confirmation" });
+  } catch (error) {
+    if (error instanceof AuthBackendError && error.status === 401) return;
+    throw error;
+  }
+  throw authError("backend_unavailable");
 }
 
 export const authAdapter = {
@@ -78,6 +96,10 @@ export const authAdapter = {
 
   async logout(jar: CookieJar) {
     if (isEmptyJar(jar)) return;
+    if (getAuthConfig().upstreamSessionRevocation) {
+      await revokeWordPressSession(jar);
+      return;
+    }
     await revokeSession(jar);
     try { await backendRequest({ endpoint: "logout", jar, context: "logout" }); }
     catch { console.warn("[auth:logout] Backend logout failed; local session was revoked."); }

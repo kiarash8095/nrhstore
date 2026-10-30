@@ -8,12 +8,12 @@ CarouselItem,
 CarouselNext,
 CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { Products } from "@/features/products/types/product.types";
+import type { ProductCardData } from "@/features/products/types/product.types";
 import { ProductCard } from "./ProductCard";
 
 interface ProductSectionProps {
   title: string;
-  products: Products[];
+  products: ProductCardData[];
   icon: ComponentType<{ className?: string }>;
   moreHref?: string;
   moreLabel?: string;

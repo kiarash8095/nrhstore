@@ -3,7 +3,8 @@ import { clearSessionCookie,readJarFromRequest } from "@/features/auth/server/co
 import { jsonOk } from "@/features/auth/server/http";
 import { authCookieRoute } from "@/features/auth/server/route-handler";
 
-// Persist local revocation before asking WordPress to log out and clearing the cookie.
+// Confirm authoritative revocation (WordPress on Vercel; persistent files locally)
+// before clearing the browser cookie.
 export const POST = authCookieRoute({
   context: "logout",
   async handler(request) {

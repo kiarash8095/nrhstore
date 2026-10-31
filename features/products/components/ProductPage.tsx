@@ -5,6 +5,7 @@ import { FiStar } from "react-icons/fi";
 import { ProductPurchase } from "./ProductPurchase";
 import ProductImages from "@/features/products/components/ProductImages";
 import { ProductStages } from "@/features/products/components/ProductStages";
+import { ProductDescription } from "./ProductDescription";
 import { RelatedProducts } from "@/features/products/components/RelatedProducts";
 import { ProductSectionSkeleton } from "@/features/products/components/skeletons/ProductSectionSkeleton";
 import { ShopDetails } from "@/features/products/components/ShopDetails";
@@ -108,7 +109,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       </section>
 
-      <ProductStages product={product} />
+      <ProductStages product={product} description={<ProductDescription value={product.description} />} />
 
       <Suspense fallback={<ProductSectionSkeleton />}>
         <RelatedProducts product={product} />

@@ -26,7 +26,7 @@ export default async function Home() {
   return (
     <HomeBannersProvider initialDocument={bannerDocument}>
     <div className="flex flex-col flex-1 items-center justify-center font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-7xl flex-col items-center justify-between px-3 bg-white dark:bg-black sm:items-start">
+      <main className="flex flex-1 w-full max-w-[1440px] flex-col items-center justify-between px-2 bg-white dark:bg-black sm:items-start sm:px-3">
         <JsonLd data={{ '@context': 'https://schema.org', '@type': 'Organization', '@id': `${site.url}/#organization`, name: site.name, url: site.url }} />
         {/* <h1 className="my-4 text-lg font-bold sm:text-2xl">فروشگاه اینترنتی نوین رایانه همدان</h1> */}
         <BannerSlider />

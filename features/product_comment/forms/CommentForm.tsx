@@ -48,8 +48,8 @@ function FormSectionHeading({
   description: string;
 }) {
   return (
-    <div className="mb-3 flex items-center gap-2 border-b-2 border-gray-200 pb-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm ring-2 ring-orange-100">
+    <div className="mb-3 flex items-center gap-2 border-b border-gray-200 pb-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm ring-1 ring-gray-200">
         <Icon className="size-4" aria-hidden="true" />
       </span>
       <div>
@@ -112,7 +112,7 @@ function TagEditor({
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 p-3 sm:p-4",
+        "rounded-2xl border p-3 sm:p-4",
         isPros
           ? "border-emerald-100 bg-emerald-50/60"
           : "border-red-100 bg-red-50/60",
@@ -146,7 +146,7 @@ function TagEditor({
           placeholder={hint}
           aria-label={label}
           disabled={disabled}
-          className="h-10 border-2 border-gray-200 bg-white text-sm shadow-sm focus-visible:border-orange-400 focus-visible:ring-2 focus-visible:ring-orange-100"
+          className="h-10 border border-gray-200 bg-white text-sm shadow-sm focus-visible:border-orange-400 focus-visible:ring-2 focus-visible:ring-orange-100"
         />
         <Button
           type="button"
@@ -155,7 +155,7 @@ function TagEditor({
           onClick={onAdd}
           disabled={disabled}
           aria-label={`افزودن ${label}`}
-          className="size-10 shrink-0 border-2 border-gray-200 bg-white shadow-sm hover:border-orange-300"
+          className="size-10 shrink-0 border border-gray-200 bg-white shadow-sm hover:border-orange-300"
         >
           <Plus className="size-4" />
         </Button>
@@ -344,10 +344,10 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
       onSubmit={submit}
       aria-busy={submitting}
       noValidate
-      className="rounded-3xl border-2 border-orange-100 bg-white p-4 shadow-md sm:p-5"
+      className="bg-white"
       dir="rtl"
     >
-      <div className="mb-5 border-b-2 border-gray-100 pb-4">
+      <div className="mb-5 border-b border-gray-100 pb-4">
         <div>
           <h3 className="text-sm font-bold text-gray-900 sm:text-base">
             تجربه‌تان از این محصول چیست؟
@@ -359,14 +359,14 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.65fr)_minmax(0,1.35fr)]">
-      <fieldset className="rounded-2xl border-2 border-orange-200 bg-orange-50/70 p-4 sm:p-5">
+      <fieldset className="rounded-2xl border border-gray-200 bg-gray-50/50 p-4 sm:p-5">
         <legend className="sr-only">امتیازدهی</legend>
         <FormSectionHeading
           icon={Star}
           title="امتیازدهی به محصول"
           description="تجربهٔ خودتان را با انتخاب یک تا پنج ستاره ثبت کنید."
         />
-        <div className="flex min-h-12 items-center justify-center rounded-xl border-2 border-orange-100 bg-white px-3 py-2 shadow-sm">
+        <div className="flex min-h-12 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
           <CommentsStarsRating
             value={rating}
             onChange={setRating}
@@ -376,7 +376,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
         <FieldError message={errors.rating} />
       </fieldset>
 
-      <fieldset className="rounded-2xl border-2 border-sky-100 bg-sky-50/45 p-4 sm:p-5">
+      <fieldset className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
         <legend className="sr-only">اطلاعات کاربر</legend>
         <FormSectionHeading
           icon={UserRound}
@@ -392,7 +392,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
               disabled={submitting}
               placeholder="مثلاً: علی رضایی"
               aria-invalid={Boolean(errors.reviewer)}
-              className="mt-1.5 border-2 border-gray-200 bg-white text-sm shadow-sm focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-100"
+              className="mt-1.5 border border-gray-200 bg-white text-sm shadow-sm focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-100"
             />
             <FieldError message={errors.reviewer} />
           </label>
@@ -406,7 +406,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
               disabled={submitting}
               placeholder="you@example.com"
               aria-invalid={Boolean(errors.reviewer_email)}
-              className="mt-1.5 border-2 border-gray-200 bg-white text-sm shadow-sm focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-100"
+              className="mt-1.5 border border-gray-200 bg-white text-sm shadow-sm focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-100"
             />
             <FieldError message={errors.reviewer_email} />
           </label>
@@ -414,7 +414,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
       </fieldset>
       </div>
 
-      <fieldset className="mt-4 rounded-2xl border-2 border-violet-100 bg-violet-50/35 p-4 sm:p-5">
+      <fieldset className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
         <legend className="sr-only">متن دیدگاه</legend>
         <FormSectionHeading
           icon={MessageSquareText}
@@ -430,7 +430,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
             placeholder="نکات مثبت و تجربهٔ استفاده‌تان را با دیگران به اشتراک بگذارید..."
             maxLength={2000}
             aria-invalid={Boolean(errors.review)}
-            className="mt-1.5 min-h-28 border-2 border-gray-200 bg-white text-sm leading-6 shadow-sm focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100"
+            className="mt-1.5 min-h-28 border border-gray-200 bg-white text-sm leading-6 shadow-sm focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100"
           />
           <div className="mt-1 flex min-h-5 items-start justify-between gap-2">
             <FieldError message={errors.review} />
@@ -441,7 +441,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
         </label>
       </fieldset>
 
-      <fieldset className="mt-4 rounded-2xl border-2 border-emerald-100 bg-emerald-50/25 p-4 sm:p-5">
+      <fieldset className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
         <legend className="sr-only">نقاط قوت و ضعف</legend>
         <FormSectionHeading
           icon={ListChecks}
@@ -481,7 +481,7 @@ export function CommentForm({ productId, onSubmitted }: CommentFormProps) {
           role={notice.kind === "error" ? "alert" : "status"}
           aria-live={notice.kind === "error" ? "assertive" : "polite"}
           className={cn(
-            "mt-4 flex items-start gap-2 rounded-2xl border-2 p-3 text-xs leading-6",
+            "mt-4 flex items-start gap-2 rounded-2xl border p-3 text-xs leading-6",
             notice.kind === "error"
               ? "border-red-200 bg-red-50 text-red-800"
               : "border-emerald-200 bg-emerald-50 text-emerald-800",

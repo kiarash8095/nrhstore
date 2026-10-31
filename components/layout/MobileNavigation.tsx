@@ -2,7 +2,9 @@
 
 import { mobileMenuItems } from "@/constants/mobile-menu-items";
 import { usePathname,useRouter } from "next/navigation";
-import { useEffect,useState,type ReactNode } from "react";
+import { useState,type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { CgArrowsExchangeAlt } from "react-icons/cg";
 import { useAuth,useAuthActions } from "../../features/auth";
 
@@ -22,29 +24,19 @@ export default function MobileNavigation({ cart }: Props) {
   const router = useRouter();
   const { isAuthenticated, status } = useAuth();
   const { openAuth } = useAuthActions();
-  const [isDockVisible, setIsDockVisible] = useState(false);
+  const hydrated = useHydrated();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const isProductPage = PRODUCT_DETAIL_PATH.test(pathname);
   const canSwitch = isProductPage && Boolean(cart);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsDockVisible(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
   // روی صفحه‌ی محصول منوی سراسری رندر نمی‌شود؛ داک همان صفحه (همراه با اکشن خرید) جایش را می‌گیرد.
-  if ((isProductPage && !cart) || pathname === '/checkout') return null;
+  if (!hydrated || (isProductPage && !cart) || (!isProductPage && cart) || pathname === '/checkout') return null;
 
-  return (
+  // A page transition's transform must not become the fixed dock's containing block.
+  return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)] lg:hidden">
-      <div
-        className={`relative transition-all duration-500 ease-out ${
-          isDockVisible
-            ? "translate-y-0 opacity-100"
-            : "translate-y-full opacity-0"
-        }`}
-      >
+      <div className="relative">
         {canSwitch && (
           <button
             type="button"
@@ -149,6 +141,7 @@ export default function MobileNavigation({ cart }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

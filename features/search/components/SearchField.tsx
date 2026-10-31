@@ -13,8 +13,9 @@ import { SearchResultsSkeleton } from "./SearchResultsSkeleton";
 
 export function SearchField() {
   const { input, setInput, isInputOpen, setIsInputOpen, debouncedInput, searchData, searchLoading, isSearchRefreshing, handleSearchInput, closeSearch } = useSearchContext();
-  return (<div className="relative w-full max-w-[520px] flex-1 ">
+  return (<div className="relative w-full min-w-0 md:max-w-[520px] md:flex-1">
               <Input
+                aria-label="جستجوی محصولات"
                 type="text"
                 value={input}
                 onChange={handleSearchInput}

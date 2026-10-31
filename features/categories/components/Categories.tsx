@@ -27,7 +27,7 @@ export async function Categories() {
 
 
   return (
-    <div className="w-full my-15">
+    <div className="my-8 w-full sm:my-10">
       <div className="flex mb-7">
         <div className="flex items-center p-2 rounded-lg border">
           <HiOutlineViewGrid color="orange" size={30} />

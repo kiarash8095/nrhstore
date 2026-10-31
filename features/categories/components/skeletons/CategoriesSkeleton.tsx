@@ -10,7 +10,7 @@ interface CategoriesSkeletonProps {
 /** هم‌شکل با بخش «دسته‌ها» در صفحه اصلی (۶ ستون در دسکتاپ). */
 export function CategoriesSkeleton({ items = 6 }: CategoriesSkeletonProps) {
   return (
-    <SkeletonStatus className="my-15 w-full">
+    <SkeletonStatus className="my-8 w-full sm:my-10">
       <div className="mb-7 flex items-center gap-3">
         <Skeleton className="h-12 w-12 shrink-0 rounded-lg" />
         <div className="space-y-2">

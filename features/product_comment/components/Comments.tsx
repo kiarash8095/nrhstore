@@ -35,7 +35,7 @@ function formatDate(value: string | null) {
 function CommentCard({ comment }: { comment: ProductComment }) {
   return (
     <article
-      className="rounded-3xl border-2 border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200 hover:shadow-md sm:p-5"
+      className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5"
       dir="rtl"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -105,7 +105,7 @@ function CommentCard({ comment }: { comment: ProductComment }) {
 
 function CommentSkeleton() {
   return (
-    <div className="h-44 animate-pulse rounded-3xl border-2 border-gray-200 bg-white p-5 shadow-sm">
+    <div className="h-44 animate-pulse rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="h-5 w-32 rounded bg-gray-100" />
       <div className="mt-5 h-4 w-full rounded bg-gray-100" />
       <div className="mt-3 h-4 w-4/5 rounded bg-gray-100" />
@@ -208,18 +208,15 @@ export function CommentsSection({
       aria-labelledby="product-comments-title"
     >
       <div
-        className="rounded-3xl border-2 border-orange-100 bg-white p-4 shadow-md sm:p-6"
+        className="border-b border-gray-100 pb-5"
         dir="rtl"
       >
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-600 ring-2 ring-orange-200">
-              <MessageCircle className="size-5" />
-            </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
             <div>
               <h2
                 id="product-comments-title"
-                className="text-lg font-bold text-gray-900"
+                className="text-base font-bold text-gray-900"
               >
                 دیدگاه کاربران
               </h2>
@@ -228,7 +225,7 @@ export function CommentsSection({
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-3 rounded-2xl border-2 border-orange-100 bg-orange-50/60 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-3 text-sm sm:justify-end">
             <div className="text-center">
               <p className="text-lg font-bold text-gray-900">
                 {visibleAverage > 0
@@ -250,16 +247,24 @@ export function CommentsSection({
         </div>
       </div>
 
-      <CommentForm productId={productId} onSubmitted={refreshAfterSubmit} />
+      <details className="group rounded-xl border border-gray-200 bg-white px-4">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm font-semibold text-gray-800 focus-visible:outline-2 focus-visible:outline-orange-500 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-2"><MessageCircle className="size-4 text-orange-600" aria-hidden="true" />دیدگاه خود را بنویسید</span>
+          <ChevronDown className="size-4 text-gray-400 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+        </summary>
+        <div className="border-t border-gray-100 py-4">
+          <CommentForm productId={productId} onSubmitted={refreshAfterSubmit} />
+        </div>
+      </details>
 
       {!loading && !error && comments.length > 0 && (
         <CommentsFilters count={comments.length} />
       )}
       <div
-        className="rounded-3xl border-2 border-gray-200 bg-gray-50/80 p-3 shadow-md sm:p-4"
+        className="border-t border-gray-100 pt-5"
         dir="rtl"
       >
-        <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-gray-200 px-1 pb-3">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200 px-1 pb-3">
           <h3 className="text-sm font-bold text-gray-800">
             دیدگاه‌های ثبت‌شده
           </h3>
@@ -279,7 +284,7 @@ export function CommentsSection({
           {!loading && error && (
             <div
               role="alert"
-              className="rounded-3xl border border-red-200 bg-red-50 p-5 text-red-800"
+              className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800"
               dir="rtl"
             >
               <div className="flex items-start gap-3">
@@ -300,7 +305,7 @@ export function CommentsSection({
           )}
           {!loading && !error && comments.length === 0 && (
             <div
-              className="rounded-3xl border border-dashed border-gray-200 bg-white p-8 text-center"
+              className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center"
               dir="rtl"
             >
               <MessageCircle className="mx-auto size-8 text-gray-300" />

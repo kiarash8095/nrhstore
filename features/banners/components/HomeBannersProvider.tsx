@@ -63,7 +63,7 @@ export function HomeBannerGroup({ group }: { group: BannerGroup }) {
   return (
     <section className={'my-6 grid w-full gap-4 sm:my-8 ' + (group === 'hardware' ? 'md:grid-cols-2 md:gap-5' : 'grid-cols-1')} aria-label={banners[0].title} data-banner-section={group}>
       {banners.map((banner) => (
-        <BannerCard key={banner.id} banner={banner} sizes={group === 'hardware' ? '(max-width: 767px) 95vw, (max-width: 1280px) 47vw, 620px' : '(max-width: 1280px) 95vw, 1256px'} />
+        <BannerCard key={banner.id} banner={banner} sizes={group === 'hardware' ? '(max-width: 767px) 100vw, (max-width: 1440px) 50vw, 698px' : '(max-width: 1440px) 100vw, 1416px'} />
       ))}
     </section>
   );

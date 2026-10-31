@@ -2,7 +2,7 @@
 
 import { e2p } from "@/utils/numbers";
 import {
-  ArrowRight,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Pause,
@@ -27,6 +27,7 @@ interface BannerSliderProps {
 }
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const IMAGE_HEIGHT = "h-[clamp(240px,38vw,480px)] lg:aspect-[4/1] lg:h-auto";
 
 function subscribeReducedMotion(notify: () => void) {
   const query = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -158,7 +159,7 @@ export function BannerSlider({
             title={
               rotationRequested ? "توقف نمایش خودکار" : "شروع نمایش خودکار"
             }
-            className="absolute bottom-3 start-3 z-10 flex size-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:border-orange-300 hover:text-orange-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
+            className="absolute start-3 top-3 z-10 flex size-11 items-center justify-center rounded-full border border-white/70 bg-white/90 text-gray-700 backdrop-blur-sm transition hover:text-orange-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
           >
             {rotationRequested ? (
               <Pause className="size-4" aria-hidden="true" />
@@ -188,28 +189,25 @@ export function BannerSlider({
                   className="group block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
                   aria-label={presentation.title + "؛ مشاهده محصولات"}
                 >
-                  <div className="relative aspect-[4/1] overflow-hidden bg-gray-100">
+                  <div className={`relative overflow-hidden bg-gray-100 ${IMAGE_HEIGHT}`}>
                     <Image
                       src={slider.src}
                       alt={slider.title}
                       fill
-                      sizes="(max-width: 1280px) 95vw, 1256px"
+                      sizes="(max-width: 1440px) 100vw, 1416px"
                       preload={index === 0}
-                      className="object-contain"
+                      className="object-cover object-center"
                     />
                   </div>
-                  <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                  <div dir="rtl" className="flex min-h-12 items-center justify-between gap-3 px-3 py-2 sm:px-5">
                     <div className="min-w-0">
-                      <h2 className="text-base font-bold leading-8 text-gray-900 sm:text-xl">
+                      <h2 className="truncate text-xs font-semibold leading-6 text-gray-800 sm:text-sm">
                         {presentation.title}
                       </h2>
-                      <p className="mt-1 text-xs leading-6 text-gray-500 sm:text-sm">
-                        {presentation.description}
-                      </p>
                     </div>
-                    <span className="inline-flex min-h-11 shrink-0 items-center justify-center gap-3 rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-colors group-hover:bg-orange-700 motion-reduce:transition-none">
-                      مشاهده محصولات
-                      <ArrowRight className="size-4" aria-hidden="true" />
+                    <span className="inline-flex shrink-0 items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-700 transition-colors group-hover:text-orange-800 motion-reduce:transition-none sm:text-xs">
+                      مشاهده
+                      <ArrowLeft className="size-3.5" aria-hidden="true" />
                     </span>
                   </div>
                 </Link>
@@ -218,7 +216,7 @@ export function BannerSlider({
           })}
         </CarouselContent>
         {sliders.length > 1 && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex aspect-[4/1] items-center justify-between px-2 sm:px-4">
+          <div className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 sm:px-4 ${IMAGE_HEIGHT}`}>
             <button
               type="button"
               onClick={() => {
@@ -226,7 +224,7 @@ export function BannerSlider({
                 api?.scrollPrev();
               }}
               aria-label="اسلاید قبلی"
-              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/95 text-gray-800 shadow-lg backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-14"
+              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-gray-800 shadow-sm backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-12"
             >
               <ChevronLeft className="size-6 sm:size-7" aria-hidden="true" />
             </button>
@@ -237,16 +235,16 @@ export function BannerSlider({
                 api?.scrollNext();
               }}
               aria-label="اسلاید بعدی"
-              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/95 text-gray-800 shadow-lg backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-14"
+              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-gray-800 shadow-sm backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-12"
             >
               <ChevronRight className="size-6 sm:size-7" aria-hidden="true" />
             </button>
           </div>
         )}
         {sliders.length > 1 && (
-          <div className="flex min-h-16 items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/70 py-3 pe-4 ps-16">
+          <div className={`pointer-events-none absolute inset-x-0 top-0 flex items-end justify-center gap-1 px-14 pb-3 ${IMAGE_HEIGHT}`}>
             <div
-              className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="pointer-events-auto min-w-0 max-w-full overflow-x-auto rounded-full bg-white/90 px-1 shadow-sm backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               role="group"
               aria-label="انتخاب بنر"
             >
@@ -262,7 +260,7 @@ export function BannerSlider({
                     aria-label={"نمایش بنر " + e2p(index + 1)}
                     aria-disabled={index === selected}
                     data-banner-dot={index}
-                    className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-orange-500 sm:w-10"
+                    className="flex h-11 w-8 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 sm:w-10"
                   >
                     <span
                       className={
@@ -278,7 +276,7 @@ export function BannerSlider({
             </div>
             <span
               data-banner-counter
-              className="min-w-12 text-center text-xs tabular-nums text-gray-500"
+              className="sr-only"
             >
               {e2p(selected + 1)} / {e2p(sliders.length)}
             </span>

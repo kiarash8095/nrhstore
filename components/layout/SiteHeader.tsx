@@ -7,6 +7,7 @@ import { SearchDialog,SearchField,SearchProvider } from "@/features/search";
 import desktopLogo from "@/public/nrh-header-desktop.png";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 
 const secondaryMenu = [
   { name: "فروشگاه", href: "/products" },
@@ -17,18 +18,36 @@ const secondaryMenu = [
 
 
 export default function SiteHeader({ categories }: { categories: Category[] }) {
+  const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const updateHeight = () => {
+      document.documentElement.style.setProperty("--store-header-height", `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--store-header-height");
+    };
+  }, []);
+
   return (
     <SearchProvider>
       <header
+        ref={headerRef}
         className="sticky top-0 z-40 border-b border-gray-100
        bg-white/90 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-sm w-full"
       >
         <div
-          className="mx-auto flex w-[90%] max-w-[1400px] items-center
+          className="mx-auto flex w-[95%] max-w-[1400px] items-center
          justify-between gap-3 py-3 lg:gap-5"
         >
-          <div className="flex items-center gap-7 w-full">
-            <div className="flex min-w-0 items-center justify-start">
+          <div className="flex min-w-0 w-full flex-col items-center gap-3 md:flex-row md:gap-7">
+            <div className="flex min-w-0 shrink-0 items-center justify-center md:justify-start">
               <Link
                 href="/"
                 className="block w-[130px] shrink-0 sm:w-[150px] lg:w-[180px]"
@@ -45,8 +64,8 @@ export default function SiteHeader({ categories }: { categories: Category[] }) {
             <SearchField />
           </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 max-md:hidden">
+          <div className="hidden shrink-0 items-center justify-end gap-2 md:flex sm:gap-3">
+            <div className="flex items-center gap-2">
               <AuthAccountButton />
 
               <CartButton />

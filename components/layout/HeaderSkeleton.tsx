@@ -10,10 +10,10 @@ export function HeaderSkeleton() {
   return (
     <SkeletonStatus label="در حال بارگذاری منو…" className="w-full">
       <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-sm">
-        <div className="mx-auto flex w-[90%] max-w-[1400px] items-center justify-between gap-3 py-3 lg:gap-5">
-          <div className="flex w-full items-center gap-7">
+        <div className="mx-auto flex w-[95%] max-w-[1400px] items-center justify-between gap-3 py-3 lg:gap-5">
+          <div className="flex min-w-0 w-full flex-col items-center gap-3 md:flex-row md:gap-7">
             <Skeleton className="h-10 w-[130px] shrink-0 rounded-lg sm:w-[150px] lg:w-[180px]" />
-            <Skeleton className="h-13 w-full max-w-[520px] flex-1 rounded-xl" />
+            <Skeleton className="h-13 w-full rounded-xl md:max-w-[520px] md:flex-1" />
           </div>
 
           <div className="flex shrink-0 items-center gap-2 max-md:hidden sm:gap-3">

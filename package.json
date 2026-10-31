@@ -39,6 +39,7 @@
     "test:user-panel": "node --test features/user-panel/tests/user-panel.security.cjs",
     "test:user-panel:browser": "node features/user-panel/tests/user-panel.browser.cjs",
     "test:comments": "node --test features/product_comment/tests/comments.test.cjs",
+    "test:storefront": "node --test tests/storefront/*.test.cjs",
     "test:blog": "node --test features/blog/tests/blog.test.cjs",
     "test:blog:browser": "node features/blog/tests/blog.browser.cjs",
     "test:security:http": "node tests/security/routes.http.cjs",

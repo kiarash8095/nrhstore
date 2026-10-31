@@ -71,6 +71,7 @@ export function useCart() {
     queryKey,
     cart: hydrated ? query.data ?? (query.error instanceof api.CartClientError ? query.error.cart : undefined) : undefined,
     error: query.error, isLoading: !hydrated || status === 'unknown' || query.isPending,
+    isSessionReady: hydrated && status !== 'unknown',
     isFetching: query.isFetching, busy, refetch: query.refetch,
     addItem: (item: AddCartItemInput) => mutate({ kind: 'add', item }),
     updateItem: (key: string, quantity: number) => mutate({ kind: 'update', key, quantity, previousQuantity: query.data?.items.find(item => item.key === key)?.quantity }),

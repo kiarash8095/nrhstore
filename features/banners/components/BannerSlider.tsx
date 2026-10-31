@@ -2,7 +2,6 @@
 
 import { e2p } from "@/utils/numbers";
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Pause,
@@ -27,7 +26,6 @@ interface BannerSliderProps {
 }
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-const IMAGE_HEIGHT = "h-[clamp(240px,38vw,480px)] lg:aspect-[4/1] lg:h-auto";
 
 function subscribeReducedMotion(notify: () => void) {
   const query = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -111,6 +109,9 @@ export function BannerSlider({
 
   if (!sliders.length) return null;
 
+  // Keep every slide at a stable landscape ratio and fit the complete artwork.
+  const aspectRatio = Math.max(2, Math.min(...sliders.map(slider => slider.width / slider.height)));
+
   return (
     <section
       ref={sectionRef}
@@ -139,35 +140,6 @@ export function BannerSlider({
           else api?.scrollPrev();
         }}
       >
-        {sliders.length > 1 && (
-          <button
-            type="button"
-            data-rotation-control
-            onPointerDown={() => {
-              pointerRotation.current = rotationRequested;
-            }}
-            onClick={(event) =>
-              setRotationChoice(
-                !(event.detail ? pointerRotation.current : rotationRequested),
-              )
-            }
-            aria-label={
-              rotationRequested
-                ? "توقف نمایش خودکار بنرها"
-                : "شروع نمایش خودکار بنرها"
-            }
-            title={
-              rotationRequested ? "توقف نمایش خودکار" : "شروع نمایش خودکار"
-            }
-            className="absolute start-3 top-3 z-10 flex size-11 items-center justify-center rounded-full border border-white/70 bg-white/90 text-gray-700 backdrop-blur-sm transition hover:text-orange-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
-          >
-            {rotationRequested ? (
-              <Pause className="size-4" aria-hidden="true" />
-            ) : (
-              <Play className="size-4" aria-hidden="true" />
-            )}
-          </button>
-        )}
         <CarouselContent
           className="-ms-0"
           aria-live={rotationRequested ? "off" : "polite"}
@@ -186,29 +158,18 @@ export function BannerSlider({
               >
                 <Link
                   href={presentation.href}
-                  className="group block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
+                  className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
                   aria-label={presentation.title + "؛ مشاهده محصولات"}
                 >
-                  <div className={`relative overflow-hidden bg-gray-100 ${IMAGE_HEIGHT}`}>
+                  <div className="relative w-full bg-gray-50" style={{ aspectRatio }}>
                     <Image
                       src={slider.src}
                       alt={slider.title}
                       fill
                       sizes="(max-width: 1440px) 100vw, 1416px"
                       preload={index === 0}
-                      className="object-cover object-center"
+                      className="object-contain"
                     />
-                  </div>
-                  <div dir="rtl" className="flex min-h-12 items-center justify-between gap-3 px-3 py-2 sm:px-5">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-xs font-semibold leading-6 text-gray-800 sm:text-sm">
-                        {presentation.title}
-                      </h2>
-                    </div>
-                    <span className="inline-flex shrink-0 items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-700 transition-colors group-hover:text-orange-800 motion-reduce:transition-none sm:text-xs">
-                      مشاهده
-                      <ArrowLeft className="size-3.5" aria-hidden="true" />
-                    </span>
                   </div>
                 </Link>
               </CarouselItem>
@@ -216,35 +177,26 @@ export function BannerSlider({
           })}
         </CarouselContent>
         {sliders.length > 1 && (
-          <div className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 sm:px-4 ${IMAGE_HEIGHT}`}>
+          <div className="flex min-h-11 items-center justify-between gap-1 border-t border-gray-100 bg-white px-1.5" data-banner-controls>
             <button
               type="button"
-              onClick={() => {
-                stopRotation();
-                api?.scrollPrev();
+              data-rotation-control
+              onPointerDown={() => {
+                pointerRotation.current = rotationRequested;
               }}
-              aria-label="اسلاید قبلی"
-              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-gray-800 shadow-sm backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-12"
+              onClick={(event) =>
+                setRotationChoice(
+                  !(event.detail ? pointerRotation.current : rotationRequested),
+                )
+              }
+              aria-label={rotationRequested ? "توقف نمایش خودکار بنرها" : "شروع نمایش خودکار بنرها"}
+              title={rotationRequested ? "توقف نمایش خودکار" : "شروع نمایش خودکار"}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-50 hover:text-orange-600 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
             >
-              <ChevronLeft className="size-6 sm:size-7" aria-hidden="true" />
+              {rotationRequested ? <Pause className="size-4" aria-hidden="true" /> : <Play className="size-4" aria-hidden="true" />}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                stopRotation();
-                api?.scrollNext();
-              }}
-              aria-label="اسلاید بعدی"
-              className="pointer-events-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/90 text-gray-800 shadow-sm backdrop-blur-sm transition hover:bg-orange-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none sm:size-12"
-            >
-              <ChevronRight className="size-6 sm:size-7" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-        {sliders.length > 1 && (
-          <div className={`pointer-events-none absolute inset-x-0 top-0 flex items-end justify-center gap-1 px-14 pb-3 ${IMAGE_HEIGHT}`}>
             <div
-              className="pointer-events-auto min-w-0 max-w-full overflow-x-auto rounded-full bg-white/90 px-1 shadow-sm backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               role="group"
               aria-label="انتخاب بنر"
             >
@@ -260,26 +212,37 @@ export function BannerSlider({
                     aria-label={"نمایش بنر " + e2p(index + 1)}
                     aria-disabled={index === selected}
                     data-banner-dot={index}
-                    className="flex h-11 w-8 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 sm:w-10"
+                    className="flex h-10 w-7 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 sm:w-9"
                   >
                     <span
                       className={
                         "h-1.5 rounded-full transition-[width,background-color] motion-reduce:transition-none " +
-                        (index === selected
-                          ? "w-6 bg-orange-600"
-                          : "w-1.5 bg-gray-300")
+                        (index === selected ? "w-5 bg-orange-600" : "w-1.5 bg-gray-300")
                       }
                     />
                   </button>
                 ))}
               </div>
             </div>
-            <span
-              data-banner-counter
-              className="sr-only"
-            >
-              {e2p(selected + 1)} / {e2p(sliders.length)}
-            </span>
+            <span data-banner-counter className="sr-only">{e2p(selected + 1)} / {e2p(sliders.length)}</span>
+            <div className="flex shrink-0 items-center">
+              <button
+                type="button"
+                onClick={() => { stopRotation(); api?.scrollPrev(); }}
+                aria-label="اسلاید قبلی"
+                className="flex size-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-50 hover:text-orange-600 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
+              >
+                <ChevronLeft className="size-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { stopRotation(); api?.scrollNext(); }}
+                aria-label="اسلاید بعدی"
+                className="flex size-10 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-50 hover:text-orange-600 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange-500 motion-reduce:transition-none"
+              >
+                <ChevronRight className="size-5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         )}
       </Carousel>

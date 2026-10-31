@@ -29,7 +29,7 @@ const port = Number(
   process.env.USER_PANEL_TEST_PORT || (mode === 'production' ? 4118 : 4117),
 );
 const origin = 'http://localhost:' + port;
-const output = path.join(root, 'artifacts/user-panel', mode);
+const output = path.resolve(process.env.USER_PANEL_TEST_OUTPUT || path.join(root, 'artifacts/user-panel', mode));
 fs.mkdirSync(output, { recursive: true });
 const secret = randomBytes(32).toString('hex');
 process.env.AUTH_SESSION_SECRET = secret;
@@ -75,6 +75,7 @@ const writes = [],
   unexpected = [],
   results = {},
   errors = [];
+const revoked = new Set();
 const cart = {
   items: [],
   items_count: 0,
@@ -103,11 +104,14 @@ const cart = {
     tax_lines: [],
   },
 };
+const otherCart = copy(cart), guestCart = copy(cart);
 const backend = http.createServer(async (request, response) => {
   const url = new URL(request.url, 'http://mock.invalid');
   const send = (data, status = 200, headers = {}) => {
     response.writeHead(status, {
       'Content-Type': 'application/json',
+      'X-NRH-Cart-Lock': 'mysql-v1',
+      'X-NRH-Account-Lock': 'mysql-v1',
       ...headers,
     });
     response.end(JSON.stringify(data));
@@ -128,10 +132,11 @@ const backend = http.createServer(async (request, response) => {
     return;
   }
   if (url.pathname.endsWith('/boom/v1/me'))
-    return customer
+    return customer && !revoked.has(key)
       ? send(customer.user, 200, { 'X-WP-Nonce': '1234567890' })
       : send({ code: 'not_logged_in' }, 401);
-  if (url.pathname.endsWith('/boom/v1/logout')) return send({ success: true });
+  if (url.pathname.endsWith('/boom/v1/logout')) { revoked.add(key); return send({ success: true }); }
+  if (url.pathname.endsWith('/nrh/v1/capabilities')) return send({ version: '1.3.0', cart_merge: 'sum-v1', account_lock: 'mysql-v1' });
   if (url.pathname.endsWith('/boom/v1/sync-session'))
     return send({ success: true });
   if (
@@ -173,7 +178,7 @@ const backend = http.createServer(async (request, response) => {
     });
   }
   if (url.pathname.endsWith('/wc/store/v1/cart'))
-    return send(cart, 200, {
+    return send(key === 'a' ? cart : key === 'b' ? otherCart : guestCart, 200, {
       Nonce: '1234567890',
       'User-ID': String(customer?.user.id || 0),
       'Cart-Token': 'mock-cart-token-12345678901234567890',
@@ -422,6 +427,9 @@ let server, browser, browserPage;
       env: {
         ...process.env,
         AUTH_SESSION_SECRET: secret,
+        BANNERS_ADMIN_USERNAME: 'browser-admin',
+        BANNERS_ADMIN_PASSWORD: randomBytes(24).toString('hex'),
+        BANNERS_ADMIN_SESSION_SECRET: randomBytes(32).toString('hex'),
         NEXT_PUBLIC_SITE_URL: origin,
         WP_API_URL: 'https://cms.example.test/wp-json',
         WP_AUTH_BASE_URL: 'https://cms.example.test/wp-json',
@@ -501,6 +509,9 @@ let server, browser, browserPage;
   });
   results.dashboard =
     'passed; real SSR session check, account API summary and right sidebar';
+  await navigation.getByRole('link', { name: 'سبد خرید', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'سبد خرید شما خالی است', exact: true })).toBeVisible();
+  results.account_cart_empty = 'passed; active cart is accessible inside the private account panel';
   await navigation.getByRole('link', { name: 'سفارش‌ها', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'سفارش‌های من', exact: true }),
@@ -663,6 +674,16 @@ let server, browser, browserPage;
     data: { id: catalogProduct.id, quantity: 1 },
   });
   assert.equal(added.status(), 200, await added.text());
+  await page.goto(origin + '/account/cart');
+  await expect(page.getByTestId('cart-item')).toHaveCount(1);
+  await expect(page.getByTestId('cart-item')).toContainText(catalogProduct.name);
+  await expect(page.getByRole('link', { name: /ادامه.*تسویه|ادامه.*خرید/ })).toBeVisible();
+  await page.screenshot({ path: path.join(output, 'account-cart-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: path.join(output, 'account-cart-mobile.png'), fullPage: true });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Account cart overflows on mobile');
+  await page.setViewportSize({ width: 1440, height: 1050 });
+  results.account_cart = 'passed; existing cart API/query/items/totals inside account, desktop and mobile';
   await page.goto(origin + '/checkout');
   await page.getByRole('button', { name: /خانه/ }).click();
   await page.locator('input[name="email"]').fill('customer@example.invalid');
@@ -673,8 +694,10 @@ let server, browser, browserPage;
   await page
     .getByRole('button', { name: 'ادامه به مرحله پرداخت', exact: true })
     .click();
+  results.checkout_stage_url_after_click = page.url();
+  await expect(page).toHaveURL(origin + '/checkout?step=payment');
   await page
-    .getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true })
+    .getByRole('button', { name: 'پرداخت', exact: true })
     .click();
   await page.waitForURL(origin + '/checkout/result?order=56');
   await expect(
@@ -836,6 +859,10 @@ let server, browser, browserPage;
     },
   ]);
   const other = await otherContext.newPage();
+  await other.goto(origin + '/account/cart');
+  await expect(other.getByRole('heading', { name: 'سبد خرید شما خالی است', exact: true })).toBeVisible();
+  await expect(other.getByTestId('cart-item')).toHaveCount(0);
+  results.account_cart_isolation = 'passed; another account cannot see the first account cart';
   await other.goto(origin + '/account');
   await expect(
     other.getByRole('heading', { name: 'سلام کاربر، خوش آمدید', exact: true }),

@@ -5,6 +5,7 @@ import { CheckCircle2, CircleAlert, LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { getAuthIdentity, useAuth, useAuthActions } from '@/features/auth';
 import { paymentStatus } from '../api';
+import { BankTransferDetails } from './BankTransferDetails';
 
 export function PaymentResult({ orderId }: { orderId: number | null }) {
   const auth = useAuth();
@@ -32,6 +33,11 @@ export function PaymentResult({ orderId }: { orderId: number | null }) {
       finalize({ id: orderId, identity: auth.user.id });
     }
   }, [result.data?.paid, orderId, auth.user, finalize]);
+  useEffect(() => {
+    if (result.data?.payment_method === 'bacs' && result.data.status === 'on-hold' && auth.user) {
+      void client.invalidateQueries({ queryKey: ['cart', auth.user.id] });
+    }
+  }, [result.data?.payment_method, result.data?.status, auth.user, client]);
   const data = result.data;
   return <main className="mx-auto my-12 w-[92%] max-w-xl rounded-2xl border border-gray-200 bg-white p-7 text-center">
     <h1 className="mb-5 text-xl font-bold">نتیجه پرداخت</h1>
@@ -45,12 +51,12 @@ export function PaymentResult({ orderId }: { orderId: number | null }) {
         <p className="mt-4">شماره سفارش: {data.order_id.toLocaleString('fa-IR')}</p>
         {data.reference && <p className="mt-3">کد پیگیری: {data.reference}</p>}
         <Link href={'/account/orders/' + data.order_id} className="mt-6 inline-flex rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white">مشاهده جزئیات سفارش</Link>
-      </> : <>
+      </> : data?.payment_method === 'bacs' ? <BankTransferDetails data={data} /> : <>
         <CircleAlert className="mx-auto mb-4 size-10 text-orange-600" />
         <p role="status" className="leading-8">پرداخت این سفارش هنوز تأیید نشده است. اگر وجه کسر شده، دوباره پرداخت نکنید و وضعیت سفارش را بررسی کنید.</p>
       </>}
       {(result.error || refresh.error) && <p role="alert" className="mt-4 leading-8 text-red-700">{(refresh.error || result.error)?.message}</p>}
-      {!data?.paid && <button disabled={refresh.isPending} onClick={() => refresh.mutate({ id: orderId, identity: auth.user!.id })} className="mt-6 rounded-xl bg-gray-900 px-5 py-3 text-white disabled:opacity-50">{refresh.isPending ? 'در حال بررسی…' : 'بررسی دوباره وضعیت'}</button>}
+      {!data?.paid && <button disabled={refresh.isPending} onClick={() => refresh.mutate({ id: orderId, identity: auth.user!.id })} className="mt-6 rounded-xl bg-gray-900 px-5 py-3 text-white disabled:opacity-50">{refresh.isPending ? 'در حال بررسی…' : data?.payment_method === 'bacs' ? 'به‌روزرسانی وضعیت سفارش' : 'بررسی دوباره وضعیت'}</button>}
     </>}
     <Link href="/products" className="mt-7 block text-sm text-gray-600 underline">بازگشت به فروشگاه</Link>
   </main>;

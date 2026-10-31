@@ -46,4 +46,15 @@ if (process.argv[2] === 'worker') {
     assert.equal(cartTokenIdentity(token(100)), cartTokenIdentity(token(200)));
     assert.notEqual(cartTokenIdentity(token(100)), cartTokenIdentity('another-opaque-token'));
   });
+  test('Vercel delegates only callers that explicitly use a locking upstream', async () => {
+    const vercel = process.env.VERCEL, lockDir = process.env.CART_LOCK_DIR;
+    process.env.VERCEL = '1'; process.env.CART_LOCK_DIR = __filename;
+    try {
+      assert.equal(await withCartLocks(['cart:7'], async () => 7, { upstream: true }), 7);
+      await assert.rejects(withCartLocks(['account:7'], async () => 9));
+    } finally {
+      if (vercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = vercel;
+      process.env.CART_LOCK_DIR = lockDir;
+    }
+  });
 }

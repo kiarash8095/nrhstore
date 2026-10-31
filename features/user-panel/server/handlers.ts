@@ -1,12 +1,13 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getCartAuthContext } from '@/features/auth/server';
+import { AuthBackendError, getCartAuthContext } from '@/features/auth/server';
 import { normalizeIranMobile, toAsciiDigits } from '@/features/auth/contracts';
 import { isTrustedOriginRequest } from '@/lib/http/request-origin';
 import { boundedJson, boundedText } from '@/lib/http/bounded-json';
 import { getWordPressApiUrl } from '@/lib/wordpress/config';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
+import { HeadlessBridgeError, requireHeadlessCapability } from '@/lib/wordpress/headless-bridge';
 import { withCartLocks, CartLockBusyError } from '@/features/cart/server';
 import { wcFetch } from '@/lib/woocommerce/store-client';
 import { productPath } from '@/lib/urls';
@@ -92,12 +93,15 @@ async function upstream(
   body?: unknown,
 ): Promise<unknown> {
   const url = new URL(getWordPressApiUrl() + path);
+  if (method !== 'GET') await requireHeadlessCapability(auth.headers, 'account_lock');
   if (method === 'GET')
     url.searchParams.set('_nrh_request', crypto.randomUUID());
   const response = await fetch(url, {
     method,
     headers: {
       ...auth.headers,
+      Origin: url.origin,
+      'X-NRH-Account-Lock': 'mysql-v1',
       Accept: 'application/json',
       'Cache-Control': 'no-cache, no-store',
       Pragma: 'no-cache',
@@ -128,12 +132,15 @@ async function upstream(
     record?.ok === false ||
     record?.error
   ) {
-    if ([401, 403].includes(response.status))
+    if (record?.code === 'boom_bad_origin') throw new AccountError(503, 'configuration_error', 'تنظیمات ارتباط با سرویس حساب کامل نیست.');
+    if (response.status === 401 || record?.code === 'rest_cookie_invalid_nonce')
       throw new AccountError(
         401,
         'session_expired',
         'نشست شما پایان یافته است. دوباره وارد حساب شوید.',
       );
+    if (record?.code === 'account_busy') throw new AccountError(409, 'account_busy', 'حساب در حال به‌روزرسانی است. کمی بعد دوباره تلاش کنید.');
+    if (response.status === 403) throw new AccountError(403, 'account_forbidden', 'اجازهٔ انجام این درخواست وجود ندارد.');
     if (response.status === 404)
       throw new AccountError(404, 'not_found', 'اطلاعات مورد نظر پیدا نشد.');
     if (response.status === 429)
@@ -149,6 +156,9 @@ async function upstream(
         ? 'سرویس حساب کاربری موقتاً در دسترس نیست.'
         : 'فروشگاه اطلاعات را نپذیرفت. ورودی‌ها را بررسی و دوباره تلاش کنید.',
     );
+  }
+  if (method !== 'GET' && response.headers.get('X-NRH-Account-Lock') !== 'mysql-v1') {
+    throw new HeadlessBridgeError('headless_bridge_outdated', 'تأیید هماهنگ‌سازی حساب دریافت نشد. افزونهٔ رابط فروشگاه را به‌روزرسانی کنید.');
   }
   return data;
 }
@@ -527,8 +537,11 @@ export async function accountHandler(
             ...(resource === 'addresses' ? ['cart:' + auth.userId] : []),
           ],
           execute,
+          { upstream: true },
         );
   } catch (error) {
+    if (error instanceof HeadlessBridgeError || error instanceof AuthBackendError)
+      return json({ code: error.code, message: error.message }, error.status);
     if (error instanceof AccountError)
       return json({ code: error.code, message: error.message }, error.status);
     if (error instanceof z.ZodError)

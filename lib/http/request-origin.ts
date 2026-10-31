@@ -21,3 +21,15 @@ export function isTrustedOriginRequest(request: NextRequest, additionalOrigins: 
     return origin === new URL(`${request.nextUrl.protocol}//${host}`).origin;
   } catch { return false; }
 }
+
+/** External browser origin after validation, including reverse-proxy/loopback hosts. */
+export function getTrustedRequestOrigin(request: NextRequest): string {
+  if (!isTrustedOriginRequest(request)) throw new Error('Untrusted request origin');
+  const origin = request.headers.get('origin');
+  if (origin) return origin;
+  const runtimeEnv = process.env;
+  if (runtimeEnv.NEXT_PUBLIC_SITE_URL) return new URL(runtimeEnv.NEXT_PUBLIC_SITE_URL).origin;
+  const host = request.headers.get('host');
+  if (host && host.length <= 255 && !/[\s/\\@?#,]/.test(host)) return new URL(`${request.nextUrl.protocol}//${host}`).origin;
+  return request.nextUrl.origin;
+}

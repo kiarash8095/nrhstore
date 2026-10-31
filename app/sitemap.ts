@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The WooCommerce transport still caches its public reads for 300 seconds.
   await connection();
   const [products, categories, posts] = await Promise.all([getAllProducts(), getAllCategories(), getAllBlogPosts()]);
-  const paths = ['/', '/products', '/categories', '/contact-us', '/blog',
+  const paths = ['/', '/products', '/categories', '/contact-us', '/blog', '/privacy-policy',
     ...products.map(product => productPath(product.slug)),
     ...categories.filter(category => (category.count || 0) > 0).map(category => categoryPath(category.slug)),
     ...posts.map(post => blogPostPath(post.slug))];

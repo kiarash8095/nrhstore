@@ -14,6 +14,7 @@ const quickAccessMenu = [
   { id: 3, title: "دسته‌بندی‌ها", href: "/categories" },
   { id: 4, title: "تماس با ما", href: "/contact-us" },
   { id: 5, title: "مجله نوین رایانه", href: "/blog" },
+  { id: 6, title: "سیاست‌ها و حریم خصوصی", href: "/privacy-policy" },
 ];
 
 const popularMenu = [

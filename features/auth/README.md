@@ -1,5 +1,7 @@
 # WordPress customer authentication
 
+Production portability update (2026-10-30): all production hosts verify WordPress session revocation during logout, including original-cookie replay checks. Local revocation files are development-only. This requires no VERCEL-specific configuration or writable production session directory.
+
 Persian learning guide: [ورود، بازیابی رمز و نشست مشتری](D:/Projects2/nrh_store_nextjs/docs/auth-learning-fa.md).
 
 Audited against `https://nrhstore.ir/wp-json/`, the site's public Boom JavaScript and the installed Next.js 16.2.12 documentation on 2026-10-13. Customer authentication is separate from the banner administrator at `/banners-admin`.

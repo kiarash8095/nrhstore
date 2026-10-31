@@ -21,6 +21,8 @@ The files in `app` only connect routes to this feature. Shared authentication an
 
 `/account`, `/account/orders`, `/account/orders/:id`, `/account/wishlist`, `/account/addresses`, `/account/profile`, `/account/support`.
 
+`/account/cart` displays the active account cart through the existing cart feature's query, item controls, pending-transfer/error states and Woo totals. No separate cart store or pricing logic is introduced in the panel.
+
 Each server-rendered private page calls `requireUser()`. An absent or invalid session redirects to the existing authentication flow and retains the intended account path. The client also hides stale account UI after logout or a change of identity. Each API request verifies the encrypted session on the server; browser-supplied identity hints never authorize access.
 
 ## Extracted WordPress contracts
@@ -50,7 +52,7 @@ The heart control on product pages persists to the same wishlist. Saved addresse
 
 ## Security and checks
 
-Private API responses use `private, no-store`; upstream reads add unpredictable cache-busters and reject cache hits/aged responses. WordPress cookies and REST nonce stay server-side. Routes, IDs, pagination, methods, request sizes and dynamic profile fields are constrained. Input errors never forward PHP paths/stack traces or arbitrary upstream payloads. Writes are serialized under per-account locks and coordinated with existing browser auth/cart session locks; lost responses are not blindly replayed.
+Private API responses use `private, no-store`; upstream reads add unpredictable cache-busters and reject cache hits/aged responses. WordPress cookies and REST nonce stay server-side. Routes, IDs, pagination, methods, request sizes and dynamic profile fields are constrained. Writes preflight bridge 1.3's authenticated `/nrh/v1/capabilities`, then require `X-NRH-Account-Lock: mysql-v1` acknowledgement. WordPress holds the same database account lock as cart/merge/checkout through session persistence. This applies on every host; no writable Next lock directory or VERCEL-specific branch is required. Lost writes are not replayed. Origin is derived from the configured WordPress server; policy failures do not automatically expire a valid login. See [deployment requirements](../../docs/purchase-readiness-fa.md).
 
 Exclude `/api/account/*`, `/account/*`, the used Boom customer endpoints and authenticated statistics from WordPress/CDN caches. Existing deployment requirements for shared persistent session/lock storage still apply.
 

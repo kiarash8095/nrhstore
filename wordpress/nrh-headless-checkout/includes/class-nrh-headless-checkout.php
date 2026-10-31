@@ -4,14 +4,37 @@ defined('ABSPATH') || exit;
 /** Keep orders, credentials, idempotency and bank verification inside WordPress. */
 final class NRH_Headless_Checkout {
     private const META = '_nrh_sadad_payment';
+    private const TRANSFER_META = '_nrh_bank_transfer';
     private const ATTEMPTS = '_nrh_checkout_attempts';
     private const BANK = 'https://sadad.shaparak.ir/VPG/';
     private ?array $context = null;
+    private array $locks = [];
 
     public function register(): void {
         add_action('rest_api_init', [$this, 'routes']);
         add_action('woocommerce_rest_checkout_process_payment_with_context', [$this, 'process_payment'], 5, 2);
         add_filter('rest_post_dispatch', [$this, 'no_cache'], 10, 3);
+        add_action('woocommerce_api_wc_gateway_melli', [$this, 'guard_legacy_payment'], -100);
+        add_action('woocommerce_receipt_melli_pay', [$this, 'guard_legacy_payment'], -100);
+        add_action('shutdown', [$this, 'release'], PHP_INT_MAX);
+    }
+
+    /** NRH orders must use their bound token/verified callback, including when
+     * someone visits the old gateway's public receipt or callback directly. */
+    public function guard_legacy_payment($order_id = null): void {
+        // This only denies legacy processing; bank webhooks cannot carry a WP
+        // nonce. Requiring one here would bypass the guard on forged callbacks.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only denial guard, never grants payment or account access.
+        $legacy_id = isset($_GET['wc_order']) ? sanitize_text_field(wp_unslash($_GET['wc_order'])) : null;
+        // do_action() passes '' when invoked without arguments. Treat that as
+        // absent too, otherwise the real legacy callback skips its URL order ID.
+        $raw = ($order_id === null || $order_id === '') ?
+            ($legacy_id ?? (WC()->session ? WC()->session->get('order_id_sadadpsp') : null)) : $order_id;
+        if (!is_scalar($raw) || !preg_match('/^[1-9][0-9]{0,14}$/D', (string) $raw)) return;
+        $order = wc_get_order((int) $raw);
+        if ($order && (is_array($order->get_meta(self::META, true)) || is_array($order->get_meta(self::TRANSFER_META, true)))) {
+            wp_die('این سفارش باید از مسیر پرداخت و نتیجهٔ فروشگاه پیگیری شود.', '', ['response' => 403]);
+        }
     }
 
     public function routes(): void {
@@ -37,7 +60,7 @@ final class NRH_Headless_Checkout {
 
     public function no_cache($response, $server, $request) {
         $route = $request->get_route();
-        if (in_array($route, ['/nrh/v1/checkout', '/nrh/v1/cart/merge', '/nrh/v1/sadad/callback'], true) || preg_match('#^/nrh/v1/orders/[1-9][0-9]{0,14}$#D', $route)) {
+        if (in_array($route, ['/nrh/v1/checkout', '/nrh/v1/cart/merge', '/nrh/v1/capabilities', '/nrh/v1/sadad/callback'], true) || preg_match('#^/nrh/v1/orders/[1-9][0-9]{0,14}$#D', $route)) {
             $response->header('Cache-Control', 'private, no-store, max-age=0');
             $response->header('X-Robots-Tag', 'noindex');
             $response->header('Referrer-Policy', 'no-referrer');
@@ -52,23 +75,54 @@ final class NRH_Headless_Checkout {
 
     /** MySQL connection locks release on disconnect and never steal an active lease. */
     public static function session_lock_key(string $identity): string {
-        return 'nrh_cart_' . substr(hash('sha256', $identity), 0, 48);
+        global $wpdb;
+        // Named locks are server-wide, including other databases and multisite blogs.
+        $site = (defined('DB_NAME') ? DB_NAME : '') . ':' . ($wpdb->prefix ?? '');
+        return 'nrh_cart_' . substr(hash('sha256', $site . ':' . $identity), 0, 48);
+    }
+
+    /** Woo may silently fail an INSERT and still clear its dirty flag/cache it.
+     * Read critical cart state back after invalidating the native session cache. */
+    public static function persist_session($session): void {
+        if (!is_callable([$session, 'get_session']) || !is_callable([$session, 'get'])) {
+            throw new RuntimeException('Unsupported session storage.');
+        }
+        $session->save_data();
+        $id = (string) $session->get_customer_id();
+        wp_cache_delete(WC_Cache_Helper::get_cache_prefix(WC_SESSION_CACHE_GROUP) . $id, WC_SESSION_CACHE_GROUP);
+        global $wpdb;
+        // Intentionally bypass the object cache: a failed native INSERT may have
+        // populated that cache with data that never reached the database.
+        $value = $wpdb->get_var($wpdb->prepare('SELECT session_value FROM %i WHERE session_key = %s', $wpdb->prefix . 'woocommerce_sessions', $id));
+        $stored = $value === null ? [] : maybe_unserialize($value);
+        if (!is_array($stored) || !empty($wpdb->last_error)) throw new RuntimeException('Session storage unavailable.');
+        foreach (['cart', 'cart_totals', 'applied_coupons', '_nrh_imported_guest_carts', 'store_api_draft_order'] as $key) {
+            if (serialize(maybe_unserialize($stored[$key] ?? null)) !== serialize($session->get($key))) {
+                throw new RuntimeException('Session could not be persisted.');
+            }
+        }
     }
 
     private function locked(int $user, callable $work) {
         global $wpdb;
         // Cart import, payment initiation and paid-cart cleanup must share the account lock.
         $key = self::session_lock_key((string) $user);
-        if ('1' !== (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $key))) {
+        if (!isset($this->locks[$key]) && '1' !== (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $key))) {
             return $this->error('payment_busy', 'درخواست قبلی در حال بررسی است. کمی بعد وضعیت را بررسی کنید.');
         }
-        try {
-            // User metadata may have been primed before another request released this lock.
-            wp_cache_delete($user, 'user_meta');
-            return $work();
-        } finally {
+        $this->locks[$key] = true;
+        // Keep the lock through Woo's shutdown session writes as well.
+        wp_cache_delete($user, 'user_meta');
+        wp_cache_delete(WC_Cache_Helper::get_cache_prefix(WC_SESSION_CACHE_GROUP) . $user, WC_SESSION_CACHE_GROUP);
+        return $work();
+    }
+
+    public function release(): void {
+        global $wpdb;
+        foreach (array_keys($this->locks) as $key) {
             $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $key));
         }
+        $this->locks = [];
     }
 
     private function attempts(int $user): array {
@@ -96,13 +150,17 @@ final class NRH_Headless_Checkout {
     public function checkout(WP_REST_Request $request) {
         $input = $request->get_json_params();
         if (strlen($request->get_body()) > 16384 || !is_array($input) ||
-            array_diff(array_keys($input), ['attempt_id', 'cart_hash', 'expected_total', 'billing_address', 'shipping_address']) ||
+            array_diff(array_keys($input), ['attempt_id', 'cart_hash', 'expected_total', 'billing_address', 'shipping_address', 'payment_method', 'customer_note']) ||
             !is_string($input['attempt_id'] ?? null) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $input['attempt_id']) ||
             !is_string($input['cart_hash'] ?? null) || !preg_match('/^[0-9a-f]{64}$/D', $input['cart_hash']) ||
             !is_string($input['expected_total'] ?? null) || !preg_match('/^[0-9]{1,18}$/D', $input['expected_total']) ||
-            !is_array($input['billing_address'] ?? null) || !is_array($input['shipping_address'] ?? null)) {
+            !is_array($input['billing_address'] ?? null) || !is_array($input['shipping_address'] ?? null) ||
+            !in_array($input['payment_method'] ?? 'melli_pay', ['melli_pay', 'bacs'], true) ||
+            !is_string($input['customer_note'] ?? '') || strlen($input['customer_note'] ?? '') > 4000 || mb_strlen($input['customer_note'] ?? '') > 1000) {
             return $this->error('invalid_input', 'اطلاعات درخواست معتبر نیست.', 400);
         }
+        $input['payment_method'] = $input['payment_method'] ?? 'melli_pay';
+        $input['customer_note'] = sanitize_textarea_field($input['customer_note'] ?? '');
         $user = get_current_user_id();
         $permission = $this->authenticated($request);
         if (is_wp_error($permission)) return $permission;
@@ -119,7 +177,9 @@ final class NRH_Headless_Checkout {
                 $rows = $this->attempts($user);
                 $id = $input['attempt_id'];
                 if (isset($rows[$id])) {
-                    if ($rows[$id]['hash'] !== $input['cart_hash'] || $rows[$id]['total'] !== $input['expected_total']) {
+                    if ($rows[$id]['hash'] !== $input['cart_hash'] || $rows[$id]['total'] !== $input['expected_total'] ||
+                        ($rows[$id]['method'] ?? 'melli_pay') !== $input['payment_method'] ||
+                        ($rows[$id]['note_hash'] ?? hash('sha256', '')) !== hash('sha256', $input['customer_note'])) {
                         return $this->error('attempt_changed', 'این شناسه برای سبد دیگری استفاده شده است.');
                     }
                     return $this->resume($rows[$id], $user);
@@ -128,7 +188,11 @@ final class NRH_Headless_Checkout {
                     // A fresh UUID cannot bypass an unresolved payment for the same cart.
                     if ($row['state'] !== 'rejected') {
                         $previous = $row['order_id'] ? wc_get_order($row['order_id']) : false;
+                        if (($row['method'] ?? '') === 'bacs' && $row['state'] === 'placed' && $previous && $row['hash'] !== $input['cart_hash']) continue;
                         if (!$previous || !$previous->is_paid()) {
+                            if (($row['method'] ?? 'melli_pay') !== $input['payment_method'] && ($row['method'] ?? '') !== 'bacs') {
+                                return $this->error('payment_pending', 'درخواست پرداخت قبلی هنوز تعیین تکلیف نشده است. ابتدا وضعیت همان سفارش را بررسی کنید.');
+                            }
                             if ($row['hash'] !== $input['cart_hash'] && $previous) {
                                 return new WP_REST_Response(['order_id' => $previous->get_id(), 'redirect_url' => $this->frontend() . '/checkout/result?order=' . $previous->get_id()]);
                             }
@@ -141,7 +205,8 @@ final class NRH_Headless_Checkout {
                 if (count($rows) >= 50) {
                     return $this->error('payment_rate_limited', 'تعداد درخواست‌های پرداخت زیاد است. با پشتیبانی تماس بگیرید.', 429);
                 }
-                $rows[$id] = ['hash' => $input['cart_hash'], 'total' => $input['expected_total'], 'created' => time(), 'state' => 'processing', 'order_id' => 0];
+                $rows[$id] = ['hash' => $input['cart_hash'], 'total' => $input['expected_total'], 'method' => $input['payment_method'],
+                    'note_hash' => hash('sha256', $input['customer_note']), 'created' => time(), 'state' => 'processing', 'order_id' => 0];
                 $this->save_attempts($user, $rows);
                 $this->context = ['user' => $user, 'attempt' => $id, 'rows' => $rows, 'started' => false];
                 $checkout = new WP_REST_Request('POST', '/wc/store/v1/checkout');
@@ -152,7 +217,7 @@ final class NRH_Headless_Checkout {
                 }
                 $checkout->set_body_params([
                     'billing_address' => $input['billing_address'], 'shipping_address' => $input['shipping_address'],
-                    'expected_total' => $input['expected_total'], 'payment_method' => 'melli_pay',
+                    'expected_total' => $input['expected_total'], 'payment_method' => $input['payment_method'], 'customer_note' => $input['customer_note'],
                     'payment_data' => [],
                 ]);
                 // Use WooCommerce's stock, coupon, shipping, address and order validation.
@@ -200,17 +265,13 @@ final class NRH_Headless_Checkout {
     }
 
     public function process_payment($context, &$result): void {
-        if (!$this->context || $context->payment_method !== 'melli_pay') {
+        if (!$this->context || !in_array($context->payment_method, ['melli_pay', 'bacs'], true)) {
             return;
         }
         $order = $context->order;
         $user = $this->context['user'];
         if ((int) $order->get_customer_id() !== $user || $order->is_paid()) {
             throw new RuntimeException('Invalid order ownership or state.');
-        }
-        $settings = $this->settings();
-        if ((wp_parse_url(rest_url('nrh/v1/sadad/callback'))['scheme'] ?? '') !== 'https') {
-            throw new RuntimeException('The bank callback requires HTTPS.');
         }
         $decimals = wc_get_price_decimals();
         $total = explode('.', (string) $order->get_total());
@@ -220,6 +281,12 @@ final class NRH_Headless_Checkout {
         if ($expected !== $this->context['rows'][$this->context['attempt']]['total']) {
             throw new RuntimeException('Order total changed during checkout.');
         }
+        if ($context->payment_method === 'bacs') {
+            $this->process_transfer($order, $result);
+            return;
+        }
+        $settings = $this->settings();
+        if ((wp_parse_url(rest_url('nrh/v1/sadad/callback'))['scheme'] ?? '') !== 'https') throw new RuntimeException('The bank callback requires HTTPS.');
         $amount = self::rial_amount((string) $order->get_total(), $order->get_currency());
         $callback_key = bin2hex(random_bytes(32));
         $payment = [
@@ -260,6 +327,59 @@ final class NRH_Headless_Checkout {
         }
         $result->set_status('success'); // Initiation succeeded; this does NOT mark the order paid.
         $result->set_redirect_url(self::BANK . 'Purchase?Token=' . rawurlencode($payment['token']));
+    }
+
+    private function process_transfer($order, $result): void {
+        $gateways = WC()->payment_gateways()->get_available_payment_gateways();
+        $gateway = $gateways['bacs'] ?? null;
+        if (!$gateway || !is_callable([$gateway, 'process_payment'])) throw new RuntimeException('Bank transfer unavailable.');
+        // Persist ownership/idempotency before the native gateway's stock, email
+        // and cart effects. An uncertain response must never create another order.
+        $marker = ['attempt' => $this->context['attempt'], 'state' => 'transfer_processing'];
+        $order->update_meta_data(self::TRANSFER_META, $marker);
+        $order->save();
+        $order->read_meta_data(true);
+        if ($order->get_meta(self::TRANSFER_META, true) !== $marker) throw new RuntimeException('Order storage unavailable.');
+        $rows = $this->context['rows'];
+        $rows[$this->context['attempt']]['order_id'] = $order->get_id();
+        $this->save_attempts($this->context['user'], $rows);
+        $this->context['started'] = true;
+        $native = $gateway->process_payment($order->get_id());
+        if (!is_array($native) || ($native['result'] ?? '') !== 'success') throw new RuntimeException('Native bank transfer failed.');
+        self::persist_session(WC()->session);
+        $marker['state'] = 'transfer_pending';
+        $order->update_meta_data(self::TRANSFER_META, $marker);
+        $order->save();
+        $order->read_meta_data(true);
+        if ($order->get_meta(self::TRANSFER_META, true) !== $marker) throw new RuntimeException('Order storage unavailable.');
+        $rows[$this->context['attempt']]['state'] = 'placed';
+        $this->save_attempts($this->context['user'], $rows);
+        $result->set_status('success');
+        $result->set_redirect_url($this->frontend() . '/checkout/result?order=' . $order->get_id());
+    }
+
+    /** Only curated presentation data; never expose gateway settings or keys. */
+    public static function cart_details(): array {
+        $details = ['version' => 2, 'methods' => [], 'cashback' => null];
+        if (is_callable([WC(), 'payment_gateways'])) {
+            foreach (WC()->payment_gateways()->get_available_payment_gateways() as $id => $gateway) {
+                if (in_array($id, ['melli_pay', 'bacs'], true)) $details['methods'][] = [
+                    'id' => $id, 'title' => mb_strcut(html_entity_decode(wp_strip_all_tags($gateway->get_title()), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 0, 150, 'UTF-8'),
+                    'description' => mb_strcut(html_entity_decode(wp_strip_all_tags($gateway->get_description()), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 0, 1500, 'UTF-8'),
+                ];
+            }
+        }
+        try {
+            if (function_exists('woo_wallet') && is_callable([woo_wallet()->cashback ?? null, 'calculate_cashback']) &&
+                (!function_exists('is_wallet_rechargeable_cart') || !is_wallet_rechargeable_cart()) &&
+                (!function_exists('is_wallet_account_locked') || !is_wallet_account_locked()) &&
+                apply_filters('display_cashback_notice_at_woocommerce_page', true)) {
+                $amount = woo_wallet()->cashback->calculate_cashback();
+                $minor = str_replace('.', '', wc_format_decimal($amount, wc_get_price_decimals()));
+                if (preg_match('/^[0-9]{1,18}$/D', $minor) && (float) $amount > 0) $details['cashback'] = $minor;
+            }
+        } catch (Throwable $error) { /* Optional rewards must not break checkout. */ }
+        return $details;
     }
 
     private function settings(bool $require_enabled = true): array {
@@ -337,10 +457,31 @@ final class NRH_Headless_Checkout {
     private function owned_order(int $id) {
         $order = wc_get_order($id);
         return $order && (int) $order->get_customer_id() === get_current_user_id() &&
-            $order->get_payment_method() === 'melli_pay' && is_array($order->get_meta(self::META, true)) ? $order : false;
+            (($order->get_payment_method() === 'melli_pay' && is_array($order->get_meta(self::META, true))) ||
+                ($order->get_payment_method() === 'bacs' && is_array($order->get_meta(self::TRANSFER_META, true)))) ? $order : false;
     }
 
     private function status($order): WP_REST_Response {
+        if ($order->get_payment_method() === 'bacs') {
+            $marker = $order->get_meta(self::TRANSFER_META, true);
+            $data = ['order_id' => $order->get_id(), 'status' => $order->get_status(), 'paid' => $order->is_paid(),
+                'payment_state' => $order->is_paid() ? 'paid' : $marker['state'], 'reference' => '', 'payment_method' => 'bacs', 'bank_transfer' => null];
+            if (!$order->is_paid() && $order->get_status() === 'on-hold' && $marker['state'] === 'transfer_pending') {
+                $settings = get_option('woocommerce_bacs_settings', []);
+                $accounts = apply_filters('woocommerce_bacs_accounts', get_option('woocommerce_bacs_accounts', []), $order->get_id());
+                $safe_accounts = [];
+                foreach (array_slice(is_array($accounts) ? $accounts : [], 0, 5) as $account) {
+                    if (!is_array($account)) continue;
+                    $safe = [];
+                    foreach (['account_name', 'account_number', 'bank_name', 'sort_code', 'iban', 'bic'] as $key) {
+                        $safe[$key] = mb_strcut(sanitize_text_field(is_scalar($account[$key] ?? '') ? (string) ($account[$key] ?? '') : ''), 0, 100, 'UTF-8');
+                    }
+                    $safe_accounts[] = $safe;
+                }
+                $data['bank_transfer'] = ['instructions' => mb_strcut(wp_strip_all_tags((string) ($settings['instructions'] ?? '')), 0, 3000, 'UTF-8'), 'accounts' => $safe_accounts];
+            }
+            return new WP_REST_Response($data);
+        }
         $payment = $order->get_meta(self::META, true);
         return new WP_REST_Response([
             'order_id' => $order->get_id(), 'status' => $order->get_status(), 'paid' => $order->is_paid(),
@@ -361,16 +502,20 @@ final class NRH_Headless_Checkout {
                 return $this->error('order_not_found', 'سفارش پیدا نشد.', 404);
             }
             $payment = $order->get_meta(self::META, true);
-            if (!$order->is_paid() && in_array($payment['state'], ['awaiting', 'verify_pending', 'verified'], true) &&
+            if ($order->get_payment_method() === 'melli_pay' && !$order->is_paid() && in_array($payment['state'], ['awaiting', 'verify_pending', 'verified'], true) &&
                 $payment['checked_at'] <= time() - 15) {
                 $this->verify($order, $payment);
             }
-            if ($order->is_paid()) {
+            if ($order->is_paid() && $order->get_payment_method() === 'melli_pay') {
                 wc_load_cart();
                 // Do not clear a new or modified cart after an older order's callback.
                 if ($order->has_cart_hash(WC()->cart->get_cart_hash())) {
                     WC()->cart->empty_cart();
-                    WC()->session->save_data();
+                    try {
+                        self::persist_session(WC()->session);
+                    } catch (Throwable $error) {
+                        return $this->error('cart_cleanup_unavailable', 'پرداخت تأیید شده است؛ ذخیرهٔ سبد خالی کامل نشد. دوباره وضعیت سفارش را بررسی کنید.', 503);
+                    }
                 }
             }
             return $this->status($order);

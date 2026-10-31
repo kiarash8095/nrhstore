@@ -16,6 +16,7 @@ import {
   Package,
   Pencil,
   ShieldCheck,
+  ShoppingBag,
   Store,
 } from 'lucide-react';
 import { useAuth, useAuthActions, type AuthUser } from '@/features/auth';
@@ -28,6 +29,7 @@ import { AccountWishlist } from './AccountWishlist';
 import { AccountAddresses } from './AccountAddresses';
 import { AccountProfile } from './AccountProfile';
 import { AccountSupport } from './AccountSupport';
+import { AccountCart } from './AccountCart';
 import {
   AccountError,
   AccountLoading,
@@ -43,6 +45,7 @@ const nav = [
     icon: LayoutDashboard,
   },
   { key: 'orders', label: 'سفارش‌ها', href: '/account/orders', icon: Package },
+  { key: 'cart', label: 'سبد خرید', href: '/account/cart', icon: ShoppingBag },
   {
     key: 'wishlist',
     label: 'علاقه‌مندی‌ها',
@@ -260,6 +263,7 @@ export function AccountPanel({
         </aside>
         <main className="min-w-0 pb-6">
           {section === 'dashboard' && <AccountDashboard name={firstName} />}
+          {section === 'cart' && <AccountCart />}
           {section === 'orders' &&
             (itemId ? (
               <AccountOrderDetails id={itemId} />

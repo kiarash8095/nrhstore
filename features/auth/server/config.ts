@@ -15,8 +15,8 @@ export function getAuthConfig() {
     sessionCookieMaxAge: positiveInt(process.env.AUTH_SESSION_MAX_AGE, 60 * 60 * 24 * 14),
     // Production cookies can never be weakened by a configuration override.
     cookieSecure: process.env.NODE_ENV === "production",
-    // Vercel instances share WordPress sessions, not a writable local filesystem.
-    upstreamSessionRevocation: process.env.VERCEL === "1",
+    // Production hosts share WordPress sessions; logout needs no local disk.
+    upstreamSessionRevocation: process.env.NODE_ENV === 'production' || process.env.VERCEL === "1",
     allowedOrigins: (process.env.AUTH_ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean),
   };
 }

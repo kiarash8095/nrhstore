@@ -49,13 +49,15 @@ export async function paymentStatusHandler(request: NextRequest, context: { para
       });
       if (!upstream.ok) return json({ message: upstream.status === 404 ? 'سفارش پیدا نشد.' : 'دریافت وضعیت سفارش ممکن نشد.' }, upstream.status === 404 ? 404 : 502);
       if (/hit/i.test([upstream.headers.get('X-LiteSpeed-Cache'), upstream.headers.get('CF-Cache-Status')].join(' '))) throw new Error('Cached private response');
-      const parsed = paymentStatusSchema.safeParse(await boundedJson(upstream, 8192));
+      const parsed = paymentStatusSchema.safeParse(await boundedJson(upstream, 49152));
       if (!parsed.success || parsed.data.order_id !== Number(id)) throw new Error('Invalid order response');
       return json(parsed.data);
     };
     // POST can empty the paid order's cart in WordPress. Serialize it with cart
     // mutations across tabs and Node workers, using the same account identity.
-    return request.method === 'POST' ? await withCartLocks(['cart:' + auth.userId], readStatus) : await readStatus();
+    // The WordPress order endpoint holds the same database account lock as cart
+    // writes and merge while checking/clearing a paid cart.
+    return request.method === 'POST' ? await withCartLocks(['cart:' + auth.userId], readStatus, { upstream: true }) : await readStatus();
   } catch (error) {
     if (error instanceof CartLockBusyError) return json({ message: 'سبد در حال به‌روزرسانی است. کمی بعد وضعیت پرداخت را دوباره بررسی کنید.' }, 409);
     return json({ message: 'ارتباط با فروشگاه ممکن نشد. وضعیت پرداخت هنوز تأیید نشده است.' }, 502);

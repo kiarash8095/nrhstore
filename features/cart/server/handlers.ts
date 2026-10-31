@@ -2,20 +2,26 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { getCartAuthContext } from '@/features/auth/server';
+import { AuthBackendError, getCartAuthContext } from '@/features/auth/server';
 import { getStoreApiUrl, getWordPressApiUrl } from '@/lib/wordpress/config';
 import { consumeRateLimit } from '@/lib/server/rate-limit';
 import { ConfigurationError } from '@/lib/server/runtime-config.cjs';
 import { addItemSchema, updateItemSchema, itemKeySchema, couponSchema, customerSchema, shippingSchema, checkoutSchema, type CheckoutInput } from '../contracts';
 import { allowedPaymentRedirect, checkoutSnapshot } from '../utils/checkout';
 import { boundedJson } from '@/lib/http/bounded-json';
-import { isTrustedOriginRequest } from '@/lib/http/request-origin';
+import { getTrustedRequestOrigin, isTrustedOriginRequest } from '@/lib/http/request-origin';
+import { HeadlessBridgeError, requireHeadlessCapability } from '@/lib/wordpress/headless-bridge';
 import type { WooCommerceCart } from '../types/woocommerce.types';
 import { cartTokenIdentity, CartLockBusyError, withCartLocks } from './cart-lock';
 
 const GUEST_COOKIE = 'nrh_cart_guest';
 const tokenPattern = /^[a-zA-Z0-9_.-]{20,3800}$/;
 const emptySchema = z.object({}).strict();
+const checkoutDetailsSchema = z.object({
+  version: z.literal(2),
+  methods: z.array(z.object({ id: z.enum(['melli_pay', 'bacs']), title: z.string().max(150), description: z.string().max(1500) }).strict()).max(2),
+  cashback: z.string().regex(/^[0-9]{1,18}$/).nullable(),
+}).strict();
 function json(data: unknown, status = 200) {
   return NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex' } });
 }
@@ -25,7 +31,8 @@ class CartError extends Error {
 function isCart(value: unknown): value is WooCommerceCart {
   if (!value || typeof value !== 'object') return false;
   const cart = value as WooCommerceCart;
-  return Array.isArray(cart.items) && Array.isArray(cart.coupons) && !!cart.totals && typeof cart.totals.total_price === 'string' && typeof cart.items_count === 'number';
+  return Array.isArray(cart.items) && Array.isArray(cart.coupons) && !!cart.totals && typeof cart.totals.total_price === 'string' && typeof cart.items_count === 'number' &&
+    (cart.nrh_checkout === undefined || checkoutDetailsSchema.safeParse(cart.nrh_checkout).success);
 }
 function readableMessage(value: unknown) {
   return typeof value === 'string' ? value.replace(/<[^>]*>/g, '').replace(/&[^;]{1,12};/g, ' ').slice(0, 350) : 'انجام درخواست سبد خرید ممکن نشد.';
@@ -51,7 +58,7 @@ class CartConnection {
         method, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(bridge ? 25000 : 15000),
         // Account requests use Woo's native cookie session, which Boom supports.
         // Sending Cart-Token here would select the incompatible token session handler.
-        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', ...this.headers, ...(this.account ? (this.nonce ? { Nonce: this.nonce } : {}) : this.token ? { 'Cart-Token': this.token } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Origin: url.origin, 'X-NRH-Cart-Lock': 'mysql-v1', ...this.headers, ...(this.account ? (this.nonce ? { Nonce: this.nonce } : {}) : this.token ? { 'Cart-Token': this.token } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch { throw new CartError(502, 'cart_connection_failed', 'ارتباط با فروشگاه قطع شد. پیش از تلاش دوباره، سبد را تازه‌سازی کنید.'); }
@@ -71,6 +78,11 @@ class CartConnection {
         typeof detail.code === 'string' ? detail.code : 'cart_request_failed',
         response.status >= 500 ? 'فروشگاه موقتاً در دسترس نیست. دوباره تلاش کنید.' : readableMessage(detail.message),
         isCart(extra.cart) ? extra.cart : undefined);
+    }
+    // Every write is preceded by cart(), so an old/missing plugin is rejected
+    // on the read, before a mutation can be sent without shared serialization.
+    if (!bridge && response.headers.get('X-NRH-Cart-Lock') !== 'mysql-v1') {
+      throw new CartError(503, 'cart_lock_backend_missing', 'افزونهٔ هماهنگ‌سازی سبد فروشگاه باید به‌روزرسانی شود. لطفاً با پشتیبانی تماس بگیرید.');
     }
     if (data === null && response.status !== 204) throw new CartError(502, 'invalid_cart_response', 'پاسخ فروشگاه معتبر نیست.');
     return data;
@@ -150,12 +162,14 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
           if (pending && auth && guestToken) {
             const account = new CartConnection(undefined, auth.headers, auth.userId);
             try {
-              const synced = await account.send('/cart/merge', 'POST', { guest_token: guestToken }, true) as { merged?: boolean };
+              await requireHeadlessCapability(auth.headers, 'cart_merge');
+              const synced = await account.send('/cart/merge', 'POST', { guest_token: guestToken, merge_policy: 'sum-v1' }, true) as { merged?: boolean };
               if (synced?.merged !== true) throw new CartError(502, 'invalid_merge_response', 'تأیید انتقال سبد دریافت نشد. دوباره سبد را بررسی کنید.');
               // Drop the guest cookie only after the account cart can be read back.
               const merged = await account.cart();
               connection = account; cart = merged; pending = false; dropEmptyGuest = true;
             } catch (error) {
+              if (error instanceof HeadlessBridgeError) throw new CartError(error.status, error.code, error.message, cart);
               if (error instanceof CartError) throw new CartError(error.status, error.code === 'rest_no_route' ? 'cart_bridge_missing' : error.code,
                 error.code === 'rest_no_route' ? 'سرویس انتقال سبد روی فروشگاه فعال نیست. سبد شما محفوظ است؛ با پشتیبانی تماس بگیرید.' : error.message, cart);
               throw error;
@@ -164,20 +178,28 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
           return finish(json({ ...cart, account_sync_pending: pending }));
         }
         if (operation === 'pay') {
+          if (!auth) throw new CartError(401, 'login_required', 'برای ثبت سفارش وارد حساب شوید.');
           const value = input as CheckoutInput;
           if (pending) throw new CartError(409, 'cart_merge_required', 'سبد این دستگاه محفوظ است؛ همگام‌سازی با حساب باید تکمیل شود.', cart);
-          if (!cart.items_count || cart.errors.length || !cart.needs_payment || !cart.payment_methods?.includes('melli_pay') ||
+          if (!cart.items_count || cart.errors.length || !cart.needs_payment || !cart.payment_methods?.includes(value.payment_method) ||
               (cart.needs_shipping && (!cart.shipping_rates.length || cart.shipping_rates.some(pack => !pack.shipping_rates?.some(rate => rate.selected))))) {
             throw new CartError(409, 'cart_not_ready', 'آدرس، روش ارسال و درگاه پرداخت سبد را بررسی کنید.', cart);
           }
           if (value.expected_total !== cart.totals.total_price || value.cart_hash !== createHash('sha256').update(checkoutSnapshot(cart)).digest('hex')) {
             throw new CartError(409, 'cart_changed', 'سبد یا مبلغ تغییر کرده است. اطلاعات تازه را بررسی و دوباره تأیید کنید.', cart);
           }
+          const extended = value.payment_method === 'bacs' || value.customer_note !== '';
+          if (extended) await requireHeadlessCapability(auth.headers, 'checkout');
+          const { payment_method, customer_note, ...snapshot } = value;
           const parsed = z.object({ order_id: z.number().int().positive().safe(), redirect_url: z.string().max(2048) }).strict().safeParse(
-            await connection.send('/checkout', 'POST', { ...value, billing_address: cart.billing_address, shipping_address: cart.shipping_address }, true),
+            await connection.send('/checkout', 'POST', { ...snapshot, ...(extended ? { payment_method, customer_note } : {}), billing_address: cart.billing_address, shipping_address: cart.shipping_address }, true),
           );
-          if (!parsed.success || !allowedPaymentRedirect(parsed.data.redirect_url, request.nextUrl.origin, parsed.data.order_id)) {
+          const frontendOrigin = getTrustedRequestOrigin(request);
+          if (!parsed.success || !allowedPaymentRedirect(parsed.data.redirect_url, frontendOrigin, parsed.data.order_id)) {
             throw new CartError(502, 'invalid_payment_response', 'پاسخ پرداخت معتبر نیست. پیش از تلاش دوباره وضعیت سفارش را بررسی کنید.');
+          }
+          if (value.payment_method === 'bacs' && new URL(parsed.data.redirect_url).origin !== frontendOrigin) {
+            throw new CartError(502, 'invalid_payment_response', 'پاسخ ثبت سفارش معتبر نیست. وضعیت سفارش را بررسی کنید.');
           }
           return finish(json(parsed.data));
         }
@@ -188,14 +210,17 @@ function handler(operation: Operation, schema: z.ZodType = emptySchema) {
           cart = data;
         }
         return finish(json({ ...cart, account_sync_pending: pending }));
-      });
+      }, { upstream: true });
     } catch (error) {
       if (error instanceof ConfigurationError) {
         console.error('[cart] Configuration error:', error.message);
         return json({ code: 'configuration_error', message: 'تنظیمات سرویس فروشگاه کامل نیست. لطفاً با پشتیبانی تماس بگیرید.' }, 503);
       }
       if (error instanceof CartLockBusyError) return json({ code: 'cart_busy', message: error.message }, 409);
+      if (error instanceof HeadlessBridgeError) return finish(json({ code: error.code, message: error.message }, error.status));
+      if (error instanceof AuthBackendError) return json({ code: error.code, message: error.message }, error.status);
       if (error instanceof CartError) return finish(json({ code: error.code, message: error.message, ...(error.cart ? { data: { cart: { ...error.cart, account_sync_pending: pending } } } : {}) }, error.status));
+      console.error('[cart] Unexpected failure:', error instanceof Error ? error.name : 'UnknownError');
       return finish(json({ code: 'cart_unavailable', message: 'دریافت سبد یا نشست حساب ممکن نشد. دوباره تلاش کنید.' }, 502));
     }
   };

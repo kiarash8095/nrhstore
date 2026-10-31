@@ -16,7 +16,7 @@ function revokedPath(id: string) {
 }
 
 export async function isSessionRevoked(jar: CookieJar): Promise<boolean> {
-  // On Vercel, /me validates the authoritative WordPress session on every read.
+  // In production, /me validates WordPress sessions on every hosting platform.
   if (getAuthConfig().upstreamSessionRevocation) return false;
   const id = getSessionId(jar);
   if (!id) return false; // A freshly authenticated upstream jar has no local ID yet.

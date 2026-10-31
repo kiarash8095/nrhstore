@@ -56,7 +56,7 @@ global.fetch = async (input, options = {}) => {
     return new Response(nonce);
   }
   const endpoint = url.pathname.split("/").pop();
-  assert.equal(url.origin, "http://127.0.0.1:49999");
+  assert.equal(url.origin, new URL(process.env.WP_AUTH_BASE_URL).origin);
   assert.ok(url.pathname.startsWith("/wp-json/boom/v1/"));
   assert.equal(options.cache, "no-store");
   assert.equal(options.redirect, "error");
@@ -308,6 +308,23 @@ test("Vercel never reports logout success when WordPress leaves the original ses
   } finally {
     delete process.env.VERCEL;
     process.env.AUTH_SESSION_DATA_DIR = previousDirectory;
+  }
+});
+
+test("production on a non-Vercel host revokes WordPress sessions without local files", async () => {
+  const directory = process.env.AUTH_SESSION_DATA_DIR, environment = process.env.NODE_ENV, platform = process.env.VERCEL, base = process.env.WP_AUTH_BASE_URL;
+  process.env.NODE_ENV = 'production'; delete process.env.VERCEL; process.env.AUTH_SESSION_DATA_DIR = __filename;
+  process.env.WP_AUTH_BASE_URL = 'https://wp.production.example.test/wp-json';
+  scenario = 'upstream-revocation';
+  const replay = sessionCookie();
+  try {
+    const r = await invoke('logout', {}, { headers: { Cookie: replay } });
+    assert.equal(r.status, 200); assert.equal((await invoke('session', undefined, { headers: { Cookie: replay } })).status, 401);
+  } finally {
+    process.env.AUTH_SESSION_DATA_DIR = directory;
+    process.env.WP_AUTH_BASE_URL = base;
+    if (environment === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = environment;
+    if (platform === undefined) delete process.env.VERCEL; else process.env.VERCEL = platform;
   }
 });
 

@@ -10,6 +10,8 @@ const auth = load('features/auth/server/backend/adapter.ts').authAdapter;
 const { encodeJar } = load('features/auth/server/cookies.ts');
 const originalSession = auth.getSession;
 const originalFetch = global.fetch;
+const originalVercel = process.env.VERCEL;
+const originalLockDir = process.env.CART_LOCK_DIR;
 const TOKEN = 'test-cart-token-12345678901234567890';
 const KEY = 'a'.repeat(32);
 process.env.WP_API_URL = 'https://cms.example.test/wp-json';
@@ -22,7 +24,7 @@ function cart(quantity = 0) {
   };
 }
 function json(data, status = 200, token = TOKEN) {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cart-Token': token, Nonce: 'abcdef1234', 'User-ID': '7' } });
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cart-Token': token, Nonce: 'abcdef1234', 'User-ID': '7', 'X-NRH-Cart-Lock': 'mysql-v1' } });
 }
 function accountCookie() {
   auth.getSession = async () => ({ user: { id: '7' }, jar: { wordpress_logged_in_test: 'login', wp_rest: '1234567890' } });
@@ -36,7 +38,11 @@ function req(path = '', body, cookie = 'nrh_cart_guest=' + TOKEN, extra = {}) {
   });
 }
 beforeEach(() => { clearAllRateLimits(); });
-afterEach(() => { global.fetch = originalFetch; auth.getSession = originalSession; });
+afterEach(() => {
+  global.fetch = originalFetch; auth.getSession = originalSession;
+  if (originalVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = originalVercel;
+  if (originalLockDir === undefined) delete process.env.CART_LOCK_DIR; else process.env.CART_LOCK_DIR = originalLockDir;
+});
 
 test('guest bootstrap stores an HttpOnly token and never exposes it in JSON', async () => {
   global.fetch = async (url, options) => {
@@ -95,7 +101,7 @@ test('update, remove, coupons, address, and shipping use their allowlisted route
 test('clear handles an empty 204 response then reads the complete cart', async () => {
   let removed = false;
   global.fetch = async (url, options) => {
-    if (options.method === 'DELETE') { removed = true; assert.equal(String(url).endsWith('/cart/items'), true); return new Response(null, { status: 204 }); }
+    if (options.method === 'DELETE') { removed = true; assert.equal(String(url).endsWith('/cart/items'), true); return new Response(null, { status: 204, headers: { 'X-NRH-Cart-Lock': 'mysql-v1' } }); }
     return json(cart(removed ? 0 : 2));
   };
   const response = await handlers.clearCartHandler(req('/clear', {}));
@@ -139,6 +145,17 @@ test('invalid input, price injection, bad keys and cross-origin writes never rea
 test('malformed upstream responses fail safely', async () => {
   global.fetch = async () => json({ items: [] });
   assert.equal((await handlers.getCartHandler(req())).status, 502);
+});
+test('checkout descriptions and cashback are curated transport data, never client calculations', async () => {
+  const value = cart(1);
+  value.nrh_checkout = { version: 2, methods: [{ id: 'bacs', title: 'Bank transfer', description: 'Manual deposit' }], cashback: '2500' };
+  global.fetch = async () => json(value);
+  let r = await handlers.getCartHandler(req()); assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).nrh_checkout, value.nrh_checkout);
+  for (const corrupt of [{ ...value.nrh_checkout, methods: {} }, { ...value.nrh_checkout, cashback: '-1' }, { ...value.nrh_checkout, secret: 'unexpected' }]) {
+    global.fetch = async () => json({ ...value, nrh_checkout: corrupt });
+    r = await handlers.getCartHandler(req()); assert.equal(r.status, 502);
+  }
 });
 
 test('a read preserves the guest cart until the explicit sync POST completes', async () => {
@@ -250,7 +267,7 @@ test('wrong-user or missing-nonce account responses cannot authorize a write', a
     let writes = 0;
     global.fetch = async (_url, options) => {
       if (options.method !== 'GET') writes++;
-      return new Response(JSON.stringify(cart(1)), { headers });
+      return new Response(JSON.stringify(cart(1)), { headers: { 'X-NRH-Cart-Lock': 'mysql-v1', ...headers } });
     };
     assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie))).status, 502);
     assert.equal(writes, 0);
@@ -272,8 +289,9 @@ test('sync posts the guest token server-side and retires its cookie after accoun
   const calls = [];
   global.fetch = async (url, options) => {
     calls.push(options.method);
+    if (new URL(url).pathname.endsWith('/capabilities')) return json({ cart_merge: 'sum-v1' });
     if (String(url).endsWith('/nrh/v1/cart/merge')) {
-      assert.deepEqual(JSON.parse(options.body), { guest_token: TOKEN });
+      assert.deepEqual(JSON.parse(options.body), { guest_token: TOKEN, merge_policy: 'sum-v1' });
       assert.equal(options.headers['Cart-Token'], undefined);
       assert.equal(options.headers['X-WP-Nonce'], '1234567890');
       return json({ merged: true });
@@ -284,7 +302,7 @@ test('sync posts the guest token server-side and retires its cookie after accoun
   const data = await response.json();
   assert.equal(response.status, 200); assert.equal(data.items_count, 3); assert.equal(data.account_sync_pending, false);
   assert.match(response.headers.get('Set-Cookie'), /nrh_cart_guest=;.*Max-Age=0/);
-  assert.deepEqual(calls, ['GET', 'POST', 'GET']);
+  assert.deepEqual(calls, ['GET', 'GET', 'POST', 'GET']);
   assert.ok(!JSON.stringify(data).includes(TOKEN));
 });
 
@@ -293,6 +311,7 @@ test('missing merge service or failed account readback keeps the guest cookie an
   for (const mode of ['missing', 'readback', 'lost']) {
     let writes = 0;
     global.fetch = async (url, options) => {
+      if (new URL(url).pathname.endsWith('/capabilities')) return json({ cart_merge: 'sum-v1' });
       if (String(url).endsWith('/nrh/v1/cart/merge')) {
         writes++;
         if (mode === 'lost') throw new Error('Lost response');
@@ -324,4 +343,104 @@ test('missing authentication configuration prevents a broken cart session before
     assert.equal(response.headers.get('set-cookie'), null);
     assert.ok(!JSON.stringify(data).includes('AUTH_SESSION_SECRET'));
   } finally { process.env.AUTH_SESSION_SECRET = secret; }
+});
+
+test('Vercel guest bootstrap, second read and add use shared upstream locks without touching local files', async () => {
+  process.env.VERCEL = '1';
+  process.env.CART_LOCK_DIR = __filename; // mkdir here would fail even on a writable workstation.
+  let quantity = 0, writes = 0;
+  global.fetch = async (url, options) => {
+    assert.equal(options.headers['X-NRH-Cart-Lock'], 'mysql-v1');
+    assert.equal(options.headers.Origin, new URL(url).origin);
+    if (options.method === 'POST') { writes++; quantity++; }
+    const response = json(cart(quantity));
+    response.headers.set('X-NRH-Cart-Lock', 'mysql-v1');
+    return response;
+  };
+  const first = await handlers.getCartHandler(req('', undefined, ''));
+  assert.equal(first.status, 200);
+  const cookie = 'nrh_cart_guest=' + first.cookies.get('nrh_cart_guest').value;
+  assert.equal((await handlers.getCartHandler(req('', undefined, cookie))).status, 200);
+  const added = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie));
+  assert.equal(added.status, 200); assert.equal((await added.json()).items_count, 1);
+  assert.equal(writes, 1);
+  assert.equal((await (await handlers.getCartHandler(req('', undefined, cookie))).json()).items_count, 1);
+});
+
+test('Vercel account reads and mutations preserve cookie authentication and both nonces', async () => {
+  process.env.VERCEL = '1'; process.env.CART_LOCK_DIR = __filename;
+  const cookie = accountCookie();
+  global.fetch = async (_url, options) => {
+    assert.equal(options.headers['Cart-Token'], undefined);
+    assert.equal(options.headers['X-WP-Nonce'], '1234567890');
+    assert.match(options.headers.Cookie, /wordpress_logged_in_test/);
+    if (options.method === 'POST') assert.equal(options.headers.Nonce, 'abcdef1234');
+    const response = json(cart(1)); response.headers.set('X-NRH-Cart-Lock', 'mysql-v1'); return response;
+  };
+  assert.equal((await handlers.getCartHandler(req('', undefined, cookie))).status, 200);
+  assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie))).status, 200);
+});
+
+test('Vercel refuses missing/unknown lock capabilities before sending any mutation', async () => {
+  process.env.VERCEL = '1'; process.env.CART_LOCK_DIR = __filename;
+  for (const protocol of [null, 'process-memory']) {
+    let writes = 0;
+    global.fetch = async (_url, options) => {
+      if (options.method !== 'GET') writes++;
+      const response = json(cart()); response.headers.delete('X-NRH-Cart-Lock'); if (protocol) response.headers.set('X-NRH-Cart-Lock', protocol); return response;
+    };
+    for (const cookie of ['nrh_cart_guest=' + TOKEN, accountCookie()]) {
+      const response = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie));
+      assert.equal(response.status, 503); assert.equal((await response.json()).code, 'cart_lock_backend_missing');
+    }
+    assert.equal(writes, 0);
+  }
+});
+
+test('upstream cart contention is preserved and a lost write is never retried on Vercel', async () => {
+  process.env.VERCEL = '1'; process.env.CART_LOCK_DIR = __filename;
+  let calls = 0;
+  global.fetch = async () => { calls++; return json({ code: 'cart_busy', message: 'سبد در حال ذخیره است.' }, 409); };
+  const busy = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }));
+  assert.equal(busy.status, 409); assert.equal((await busy.json()).code, 'cart_busy'); assert.equal(calls, 1);
+  let writes = 0;
+  global.fetch = async (_url, options) => {
+    if (options.method === 'POST') { writes++; throw new Error('lost response'); }
+    const response = json(cart()); response.headers.set('X-NRH-Cart-Lock', 'mysql-v1'); return response;
+  };
+  const lost = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }));
+  assert.equal(lost.status, 502); assert.equal((await lost.json()).code, 'cart_connection_failed'); assert.equal(writes, 1);
+});
+
+test('an auth backend outage is reported separately from cart failure and cannot write as guest', async () => {
+  const { authError } = load('features/auth/server/backend/errors.ts');
+  const cookie = accountCookie();
+  auth.getSession = async () => { throw authError('backend_unavailable'); };
+  let calls = 0; global.fetch = async () => { calls++; throw new Error('must not reach Woo'); };
+  const response = await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }, cookie));
+  assert.equal(response.status, 503); assert.equal((await response.json()).code, 'backend_unavailable'); assert.equal(calls, 0);
+});
+
+test('all hosting platforms require shared cart coordination and never touch the local lock path', async () => {
+  process.env.CART_LOCK_DIR = __filename;
+  global.fetch = async () => json(cart(1));
+  for (const platform of [undefined, '0', '1']) {
+    if (platform === undefined) delete process.env.VERCEL; else process.env.VERCEL = platform;
+    assert.equal((await handlers.getCartHandler(req())).status, 200);
+    assert.equal((await handlers.addItemHandler(req('/add-item', { id: 12, quantity: 1 }))).status, 200);
+  }
+});
+
+test('an old merge policy cannot replace quantities and preserves the complete guest snapshot', async () => {
+  const cookie = accountCookie() + '; nrh_cart_guest=' + TOKEN;
+  let writes = 0;
+  global.fetch = async (url, options) => {
+    if (new URL(url).pathname.endsWith('/capabilities')) return json({ cart_merge: 'replace-v1' });
+    if (options.method === 'POST') writes++;
+    return json(cart(2));
+  };
+  const r = await handlers.syncCartHandler(req('/sync', {}, cookie)), data = await r.json();
+  assert.equal(r.status, 503); assert.equal(data.code, 'headless_bridge_outdated'); assert.equal(writes, 0);
+  assert.equal(data.data.cart.items_count, 2); assert.equal(data.data.cart.account_sync_pending, true);
+  assert.equal(r.cookies.get('nrh_cart_guest').value, TOKEN);
 });

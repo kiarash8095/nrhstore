@@ -158,7 +158,7 @@ const fulfill = (route, data, status = 200) => route.fulfill({ status, contentTy
     await captureCheckout('checkout-shipping-desktop.png');
     await next.click();
     await page.waitForURL(origin + '/checkout?step=payment');
-    const pay = page.getByRole('button', { name: 'پرداخت با سداد بانک ملی', exact: true });
+    const pay = page.getByRole('button', { name: 'پرداخت', exact: true });
     await expect(pay).toBeEnabled();
     assert.equal(writes, 0, 'Moving to the payment stage must not create an order.');
     const logo = page.getByRole('img', { name: 'بانک ملی ایران', exact: true });

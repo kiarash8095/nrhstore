@@ -2,6 +2,8 @@
 // Isolated contract/security tests. No WordPress database or bank traffic is used.
 define('ABSPATH', __DIR__);
 define('DAY_IN_SECONDS', 86400);
+define('WC_SESSION_CACHE_GROUP', 'wc_session_id');
+final class WC_Cache_Helper { public static function get_cache_prefix($group) { return 'prefix_'; } }
 define('NRH_HEADLESS_FRONTEND_URL', 'https://shop.example.test');
 error_reporting(E_ALL);
 set_error_handler(static function ($level, $message, $file, $line) { throw new ErrorException($message, 0, $level, $file, $line); });
@@ -36,6 +38,7 @@ final class WP_REST_Request implements ArrayAccess {
 final class TestOrder {
     public array $meta = [], $persisted_meta = [];
     public bool $paid = false;
+    public string $method = 'melli_pay', $state = 'pending', $note = '';
     public int $completions = 0;
     public string $total = '250000.00', $currency = 'IRT';
     public function __construct(public int $id = 55, public int $user = 7) {}
@@ -43,9 +46,9 @@ final class TestOrder {
     public function get_customer_id() { return $this->user; }
     public function get_total() { return $this->total; }
     public function get_currency() { return $this->currency; }
-    public function get_payment_method() { return 'melli_pay'; }
+    public function get_payment_method() { return $this->method; }
     public function is_paid() { return $this->paid; }
-    public function get_status() { return $this->paid ? 'processing' : 'pending'; }
+    public function get_status() { return $this->paid ? 'processing' : $this->state; }
     public function get_meta($key, $single = true) { return $this->meta[$key] ?? ''; }
     public function update_meta_data($key, $value) { $this->meta[$key] = $value; }
     public function save() { if (!$GLOBALS['meta_storage_fail']) $this->persisted_meta = $this->meta; }
@@ -59,8 +62,10 @@ final class TestPaymentResult {
     public function set_redirect_url($url) { $this->url = $url; }
 }
 final class TestDB {
-    public function prepare($query, $key) { return [$query, $key]; }
+    public string $prefix = 'wp_';
+    public function prepare($query, ...$args) { return array_merge([$query], $args); }
     public function get_var($query) {
+        if (str_contains($query[0], 'SELECT session_value')) return serialize([]);
         if (str_contains($query[0], 'GET_LOCK')) return $GLOBALS['lock_busy'] || $query[1] === ($GLOBALS['held_cart_lock'] ?? null) ? '0' : '1';
         return '1';
     }
@@ -71,7 +76,33 @@ final class TestCart {
     public function get_cart_hash() { return $this->hash; }
     public function empty_cart() { $this->clears++; }
 }
-final class TestSession { public function save_data() {} }
+final class TestSession {
+    public function save_data() {}
+    public function get_customer_id() { return '7'; }
+    public function get_session($id, $default) { return []; }
+    public function get($key) { return null; }
+}
+final class TestBacsGateway {
+    public function process_payment($id) {
+        $GLOBALS['bacs_calls']++;
+        $GLOBALS['orders'][$id]->state = 'on-hold';
+        WC()->cart->empty_cart();
+        if ($GLOBALS['bacs_throw']) throw new RuntimeException('private gateway failure');
+        return ['result' => 'success', 'redirect' => 'https://cms.example.test/order-received/55'];
+    }
+    public function get_title() { return '<b>Bank transfer</b>'; }
+    public function get_description() { return '<p>Manual deposit</p>'; }
+}
+final class TestGateways {
+    public function get_available_payment_gateways() { return $GLOBALS['bacs_enabled'] ? ['bacs' => new TestBacsGateway()] : []; }
+}
+final class TestWoo {
+    public TestCart $cart;
+    public TestSession $session;
+    public function __construct() { $this->cart = new TestCart(); $this->session = new TestSession(); }
+    public function payment_gateways() { return new TestGateways(); }
+}
+function maybe_unserialize($value) { return is_string($value) && str_starts_with($value, 'a:') ? unserialize($value) : $value; }
 final class TestCartTokens {
     public static function validate_cart_token($token) { return $token === 'signed-token'; }
     public static function get_cart_token_payload($token) { return ['user_id' => $GLOBALS['token_user']]; }
@@ -81,8 +112,13 @@ function get_current_user_id() { return $GLOBALS['user']; }
 function wp_verify_nonce($nonce, $action) { return ($nonce === 'valid-nonce' && $action === 'wp_rest') || ($nonce === 'valid-store-nonce' && $action === 'wc_store_api'); }
 function get_user_meta($id, $key, $single) { return $GLOBALS['users'][$id][$key] ?? ''; }
 function update_user_meta($id, $key, $data) { if (!$GLOBALS['storage_fail']) $GLOBALS['users'][$id][$key] = $data; }
-function get_option($key, $default = false) { return $GLOBALS['settings']; }
+function get_option($key, $default = false) {
+    if ($key === 'woocommerce_bacs_settings') return ['instructions' => 'Use the order number for transfer.'];
+    if ($key === 'woocommerce_bacs_accounts') return [['account_name' => 'Audit merchant', 'account_number' => '123456', 'bank_name' => 'Audit bank', 'iban' => 'IR123456', 'private_key' => 'SECRET']];
+    return $GLOBALS['settings'];
+}
 function wc_get_order($id) { return $GLOBALS['orders'][$id] ?? false; }
+function wp_die($message, $title = '', $args = []) { throw new RuntimeException('legacy payment blocked', $args['response'] ?? 500); }
 function wc_get_price_decimals() { return 0; }
 function wp_json_encode($data) { return json_encode($data); }
 function wp_parse_url($url) { return parse_url($url); }
@@ -95,6 +131,11 @@ function wp_remote_retrieve_body($value) { return $value['body']; }
 function WC() { return $GLOBALS['wc']; }
 function wc_load_cart() {}
 function wp_cache_delete(...$args) {}
+function wp_unslash($value) { return $value; }
+function sanitize_text_field($value) { return is_scalar($value) ? (string) $value : ''; }
+function sanitize_textarea_field($value) { return trim(strip_tags($value)); }
+function wp_strip_all_tags($value) { return strip_tags($value); }
+function apply_filters($hook, $value, ...$args) { return $value; }
 function add_action(...$args) {}
 function add_filter(...$args) {}
 function register_rest_route(...$args) {}
@@ -122,12 +163,14 @@ function wp_remote_post($url, $args) {
 function rest_do_request($request) {
     $GLOBALS['dispatches']++;
     check($request->get_route() === '/wc/store/v1/checkout', 'delegate official checkout');
-    check($request->params['payment_method'] === 'melli_pay', 'fixed registered gateway');
+    check(in_array($request->params['payment_method'], ['melli_pay', 'bacs'], true), 'allowlisted registered gateway');
     check($request->get_header('nonce') === 'valid-store-nonce', 'forward Store API nonce');
     check($request->get_header('cart-token') === '', 'preserve native account session');
     if ($GLOBALS['core_mode'] === 'boom_error') throw new Error('Boom/inc/cart-sync.php SECRET');
     if ($GLOBALS['core_mode'] === 'invalid_address') return new WP_REST_Response(['private' => 'SECRET'], 400);
-    $context = (object) ['payment_method' => 'melli_pay', 'order' => $GLOBALS['orders'][55]];
+    $GLOBALS['orders'][55]->method = $request->params['payment_method'];
+    $GLOBALS['orders'][55]->note = $request->params['customer_note'];
+    $context = (object) ['payment_method' => $request->params['payment_method'], 'order' => $GLOBALS['orders'][55]];
     $result = new TestPaymentResult();
     try { $GLOBALS['bridge']->process_payment($context, $result); }
     catch (Throwable $error) { return new WP_REST_Response(null, 500); }
@@ -144,7 +187,8 @@ function reset_case() {
     $GLOBALS['meta_storage_fail'] = false;
     $GLOBALS['bank_mode'] = 'success'; $GLOBALS['verify_mode'] = 'success'; $GLOBALS['core_mode'] = 'success';
     $GLOBALS['settings'] = ['enabled' => 'yes', 'merchant_id' => '123', 'terminal_id' => '456', 'terminal_key' => base64_encode(str_repeat('a', 24))];
-    $GLOBALS['wpdb'] = new TestDB(); $GLOBALS['wc'] = (object) ['cart' => new TestCart(), 'session' => new TestSession()];
+    $GLOBALS['bacs_calls'] = 0; $GLOBALS['bacs_enabled'] = true; $GLOBALS['bacs_throw'] = false;
+    $GLOBALS['wpdb'] = new TestDB(); $GLOBALS['wc'] = new TestWoo();
     $GLOBALS['bridge'] = new NRH_Headless_Checkout();
 }
 function input_request($overrides = []) {
@@ -168,6 +212,47 @@ function test_case($name, $work) {
 }
 $GLOBALS['passed'] = 0; $GLOBALS['failed'] = 0;
 
+test_case('native BACS creates on-hold order, preserves notes and never calls Sadad', function ($bridge) {
+    $input = input_request(['payment_method' => 'bacs', 'customer_note' => '<b>Call before delivery</b>']);
+    $response = $bridge->checkout($input);
+    eq($response->status, 200); eq($response->data['redirect_url'], 'https://shop.example.test/checkout/result?order=55');
+    eq($GLOBALS['orders'][55]->state, 'on-hold'); check(!$GLOBALS['orders'][55]->paid);
+    eq($GLOBALS['orders'][55]->note, 'Call before delivery'); eq($GLOBALS['bacs_calls'], 1); eq(count($GLOBALS['http']), 0);
+    eq(WC()->cart->clears, 1);
+    for ($i = 0; $i < 3; $i++) eq($bridge->checkout($input)->data['order_id'], 55);
+    eq($GLOBALS['bacs_calls'], 1); eq(WC()->cart->clears, 1);
+});
+test_case('an attempt cannot change method or note after order creation', function ($bridge) {
+    $bridge->checkout(input_request(['payment_method' => 'bacs', 'customer_note' => 'first']));
+    eq($bridge->checkout(input_request(['payment_method' => 'melli_pay', 'customer_note' => 'first']))->code, 'attempt_changed');
+    eq($bridge->checkout(input_request(['payment_method' => 'bacs', 'customer_note' => 'second']))->code, 'attempt_changed');
+    eq($GLOBALS['bacs_calls'], 1); eq(count($GLOBALS['http']), 0);
+});
+test_case('unavailable BACS fails before gateway, bank and durable attempt side effects', function ($bridge) {
+    $GLOBALS['bacs_enabled'] = false;
+    eq($bridge->checkout(input_request(['payment_method' => 'bacs']))->data['status'], 502);
+    eq($GLOBALS['bacs_calls'], 0); eq(count($GLOBALS['http']), 0);
+});
+test_case('uncertain native transfer cannot re-run stock/cart side effects', function ($bridge) {
+    $GLOBALS['bacs_throw'] = true;
+    eq($bridge->checkout(input_request(['payment_method' => 'bacs']))->data['order_id'], 55);
+    eq($bridge->checkout(input_request(['payment_method' => 'bacs']))->data['order_id'], 55);
+    eq($GLOBALS['bacs_calls'], 1);
+    $r = new WP_REST_Request(); $r['id'] = 55;
+    eq($bridge->order_status($r)->data['payment_state'], 'transfer_processing');
+    eq($bridge->order_status($r)->data['bank_transfer'], null);
+});
+test_case('bank details are owner-only, curated and never run Verify or clear a later cart', function ($bridge) {
+    $bridge->checkout(input_request(['payment_method' => 'bacs']));
+    $r = new WP_REST_Request(); $r['id'] = 55;
+    $status = $bridge->order_status($r)->data;
+    eq($status['payment_method'], 'bacs'); eq($status['payment_state'], 'transfer_pending');
+    eq($status['bank_transfer']['accounts'][0]['account_number'], '123456');
+    check(!str_contains(json_encode($status), 'SECRET'));
+    $GLOBALS['user'] = 8; eq($bridge->order_status($r)->data['status'], 404);
+    $GLOBALS['user'] = 7; $GLOBALS['orders'][55]->paid = true;
+    eq($bridge->refresh_order($r)->data['paid'], true); eq(WC()->cart->clears, 1); eq(count($GLOBALS['http']), 0);
+});
 test_case('anonymous checkout and order permissions are denied', function ($bridge) {
     $GLOBALS['user'] = 0;
     eq($bridge->authenticated()->data['status'], 401);
@@ -175,7 +260,7 @@ test_case('anonymous checkout and order permissions are denied', function ($brid
     eq(count($GLOBALS['http']), 0);
 });
 test_case('array injection, extra fields and oversized inputs are rejected', function ($bridge) {
-    foreach ([['attempt_id' => []], ['expected_total' => []], ['cart_hash' => []], ['payment_method' => 'bacs'], ['attempt_id' => '../x']] as $bad) {
+    foreach ([['attempt_id' => []], ['expected_total' => []], ['cart_hash' => []], ['payment_method' => 'cod'], ['customer_note' => []], ['customer_note' => str_repeat('x', 1001)], ['attempt_id' => '../x']] as $bad) {
         eq($bridge->checkout(input_request($bad))->data['status'], 400);
     }
     $request = input_request(); $request->body = str_repeat('x', 16385);
@@ -244,6 +329,7 @@ test_case('cart transfer lock blocks checkout and paid-cart cleanup before side 
     eq($GLOBALS['dispatches'], 0); eq(count($GLOBALS['http']), 0);
     $GLOBALS['held_cart_lock'] = null;
     $bridge->checkout(input_request());
+    $bridge->release(); // Finish the first simulated HTTP request, including shutdown.
     $order = $GLOBALS['orders'][55]; $order->paid = true;
     $GLOBALS['held_cart_lock'] = NRH_Headless_Checkout::session_lock_key('7');
     $request = new WP_REST_Request(); $request['id'] = 55;
@@ -367,6 +453,20 @@ test_case('private routes disable caching and referrer leakage', function ($brid
     eq($public->headers, []);
 });
 
+test_case('NRH orders cannot bypass bound verification using the legacy Sadad callback or receipt', function ($bridge) {
+    eq($bridge->checkout(input_request())->status, 200);
+    $before = count($GLOBALS['http']); $query = $_GET;
+    try {
+        $_GET['wc_order'] = '55';
+        foreach ([null, '', 55] as $id) {
+            try { $bridge->guard_legacy_payment($id); throw new RuntimeException('legacy bypass allowed'); }
+            catch (RuntimeException $error) { eq($error->getCode(), 403); }
+        }
+        eq(count($GLOBALS['http']), $before); check(!$GLOBALS['orders'][55]->is_paid());
+        unset($GLOBALS['orders'][55]->meta['_nrh_sadad_payment']);
+        $bridge->guard_legacy_payment(55); // Traditional non-NRH orders remain outside this flow.
+    } finally { $_GET = $query; }
+});
 reset_case();
 $bridge = $GLOBALS['bridge']; $bridge->checkout(input_request());
 $request = new WP_REST_Request('GET'); $request['id'] = 55;

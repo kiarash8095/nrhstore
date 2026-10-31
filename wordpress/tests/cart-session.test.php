@@ -17,7 +17,7 @@ final class WP_REST_Request {
     public array $json;
     public string $body;
     public function __construct() {
-        $this->json = ['guest_token' => 'signed-guest-token']; $this->body = json_encode($this->json);
+        $this->json = ['guest_token' => 'signed-guest-token', 'merge_policy' => 'sum-v1']; $this->body = json_encode($this->json);
     }
     public function get_header($key) { return $this->headers[$key] ?? ''; }
     public function get_json_params() { return $this->json; }
@@ -32,6 +32,30 @@ final class TestController {
     public function load_cart() { $GLOBALS['loads']++; }
 }
 class_alias(TestController::class, 'Automattic\\WooCommerce\\StoreApi\\Utilities\\CartController');
+class WC_Product {
+    public function __construct(public int $id) {}
+    public function exists() { return !in_array($this->id, $GLOBALS['unavailable'], true); }
+    public function is_purchasable() { return $this->exists(); }
+    public function is_in_stock() { return $this->exists(); }
+    public function get_stock_managed_by_id() { return $GLOBALS['stock_parent'][$this->id] ?? $this->id; }
+    public function managing_stock() { return isset($GLOBALS['stock'][$this->id]); }
+    public function backorders_allowed() { return false; }
+    public function get_stock_quantity() { return $GLOBALS['stock'][$this->id] ?? null; }
+}
+function wc_get_product($id) { return $id > 0 ? new WC_Product((int) $id) : false; }
+function wc_get_cart_item_data_hash($product) { return 'current-hash'; }
+function wc_stock_amount($number) { return floor($number) === (float) $number ? (int) $number : (float) $number; }
+final class TestQuantityLimits {
+    public function validate_cart_item_quantity($quantity, $item) {
+        $GLOBALS['validated'][] = $item;
+        return $quantity > ($GLOBALS['maximum'][$item['data']->id] ?? 9999) ? new WP_Error('invalid_quantity', 'limit') : true;
+    }
+}
+class_alias(TestQuantityLimits::class, 'Automattic\\WooCommerce\\StoreApi\\Utilities\\QuantityLimits');
+final class TestReserveStock {
+    public function get_reserved_stock($product, $draft) { return $GLOBALS['reserved'][$product->id] ?? 0; }
+}
+class_alias(TestReserveStock::class, 'Automattic\\WooCommerce\\Checkout\\Helpers\\ReserveStock');
 final class WC_Cache_Helper { public static function get_cache_prefix($group) { return 'prefix_'; } }
 function sanitize_key($key) { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($key)); }
 function maybe_serialize($value) { return is_array($value) || is_object($value) ? serialize($value) : $value; }
@@ -53,7 +77,18 @@ class WC_Session_Handler extends WC_Session {
 }
 final class TestCart {
     public array $items = [];
-    public function calculate_totals() { $GLOBALS['calculations']++; }
+    public function calculate_totals() {
+        $GLOBALS['calculations']++;
+        if (!empty($GLOBALS['hook_drops_item'])) {
+            unset($this->items['guest']);
+            WC()->session->set('cart', $this->items);
+            WC()->session->save_data();
+        }
+        if ($GLOBALS['calculation_fails']) {
+            // Simulate a third-party Woo hook persisting before throwing.
+            WC()->session->save_data(); throw new RuntimeException('calculation failed');
+        }
+    }
 }
 final class WC_Cart_Session {
     public function __construct(private TestCart $cart) {}
@@ -72,8 +107,10 @@ final class TestWoo {
     public function initialize_session() {}
 }
 final class TestDB {
-    public function prepare($sql, $key) { return [$sql, $key]; }
+    public string $prefix = 'wp_';
+    public function prepare($sql, ...$args) { return array_merge([$sql], $args); }
     public function get_var($query) {
+        if (str_contains($query[0], 'SELECT session_value')) return isset($GLOBALS['store'][$query[2]]) ? serialize($GLOBALS['store'][$query[2]]) : null;
         if (str_contains($query[0], 'RELEASE_LOCK')) { $GLOBALS['released'][] = $query[1]; return '1'; }
         $GLOBALS['acquired'][] = $query[1];
         if ($query[1] === ($GLOBALS['held_payment_lock'] ?? null)) return '0';
@@ -98,6 +135,8 @@ function reset_case() {
     $GLOBALS['acquired'] = []; $GLOBALS['released'] = []; $GLOBALS['cache_deletes'] = [];
     $GLOBALS['busy_at'] = 0; $GLOBALS['held_payment_lock'] = null; $GLOBALS['saves'] = 0; $GLOBALS['loads'] = 0; $GLOBALS['rehydrations'] = 0;
     $GLOBALS['calculations'] = 0; $GLOBALS['persistent_updates'] = 0; $GLOBALS['save_fails'] = false; $GLOBALS['delete_fails'] = false;
+    $GLOBALS['hook_drops_item'] = false;
+    $GLOBALS['maximum'] = []; $GLOBALS['stock'] = []; $GLOBALS['reserved'] = []; $GLOBALS['stock_parent'] = []; $GLOBALS['unavailable'] = []; $GLOBALS['validated'] = []; $GLOBALS['calculation_fails'] = false;
     $GLOBALS['store'] = [
         '7' => ['cart' => ['same' => ['product_id' => 12, 'quantity' => 1], 'account' => ['product_id' => 13, 'quantity' => 1]], 'customer' => ['email' => 'account@example.test'], 'applied_coupons' => ['ACCOUNT']],
         $GLOBALS['guest'] => ['cart' => ['same' => ['product_id' => 12, 'quantity' => 2], 'guest' => ['product_id' => 14, 'quantity' => 1, 'variation' => ['pa_color' => 'black'], 'custom' => ['engraving' => 'sample']]], 'customer' => ['email' => 'guest@example.test'], 'store_api_draft_order' => 999, 'applied_coupons' => ['GUEST']],
@@ -132,6 +171,10 @@ test_case('account identities cannot be imported as guest carts', function ($bri
     eq($GLOBALS['saves'], 0);
 });
 test_case('unexpected fields, oversized bodies and token headers are rejected', function ($bridge) {
+    $request = new WP_REST_Request(); unset($request->json['merge_policy']);
+    eq($bridge->merge($request)->data['status'], 400);
+    $request = new WP_REST_Request(); $request->json['merge_policy'] = 'replace-v1';
+    eq($bridge->merge($request)->data['status'], 400);
     $request = new WP_REST_Request(); $request->json['user_id'] = 8;
     eq($bridge->merge($request)->data['status'], 400);
     $request = new WP_REST_Request(); $request->body = str_repeat('x', 4097);
@@ -142,13 +185,15 @@ test_case('unexpected fields, oversized bodies and token headers are rejected', 
 test_case('native Woo session preserves both carts, variation metadata, coupons and account privacy', function ($bridge) {
     eq($bridge->merge(new WP_REST_Request())->status, 200);
     $data = read_store('7');
-    eq(count($data['cart']), 3); eq($data['cart']['same']['quantity'], 2);
+    eq(count($data['cart']), 3); eq($data['cart']['same']['quantity'], 3);
     eq($data['cart']['guest']['variation'], ['pa_color' => 'black']);
     eq($data['cart']['guest']['custom'], ['engraving' => 'sample']);
     eq($data['customer']['email'], 'account@example.test');
     check(!isset($data['store_api_draft_order'])); eq($data['applied_coupons'], ['ACCOUNT', 'GUEST']);
     check(!isset($GLOBALS['store'][$GLOBALS['guest']]));
     eq($GLOBALS['calculations'], 1); check($GLOBALS['rehydrations'] >= 2);
+    eq(count($GLOBALS['released']), 0); // Woo may still write this session at shutdown.
+    $bridge->release();
     eq(count($GLOBALS['released']), 2);
 });
 test_case('100 retries cannot duplicate items or overwrite later account quantity edits', function ($bridge) {
@@ -157,7 +202,7 @@ test_case('100 retries cannot duplicate items or overwrite later account quantit
     $GLOBALS['store']['7']['cart'] = maybe_serialize($cart);
     for ($i = 0; $i < 100; $i++) eq($bridge->merge(new WP_REST_Request())->status, 200);
     eq(read_store('7')['cart']['same']['quantity'], 4);
-    eq($GLOBALS['saves'], 1); eq($GLOBALS['calculations'], 1);
+    eq($GLOBALS['saves'], 2); eq($GLOBALS['calculations'], 1);
 });
 test_case('payment account lock blocks import without retiring either cart', function ($bridge) {
     $before = $GLOBALS['store'];
@@ -178,6 +223,8 @@ test_case('failed storage preserves guest data and never reports successful tran
     eq($bridge->merge(new WP_REST_Request())->data['status'], 502);
     check(isset($GLOBALS['store'][$GLOBALS['guest']]));
     check(!isset($GLOBALS['store']['7']['_nrh_imported_guest_carts']));
+    eq(count($GLOBALS['released']), 0);
+    $bridge->release();
     eq(count($GLOBALS['released']), 2);
 });
 test_case('failed guest retirement can be retried using the persisted import marker', function ($bridge) {
@@ -186,7 +233,7 @@ test_case('failed guest retirement can be retried using the persisted import mar
     check(isset($GLOBALS['store'][$GLOBALS['guest']]));
     $GLOBALS['delete_fails'] = false;
     eq($bridge->merge(new WP_REST_Request())->status, 200);
-    eq($GLOBALS['saves'], 1); check(!isset($GLOBALS['store'][$GLOBALS['guest']]));
+    eq($GLOBALS['saves'], 2); check(!isset($GLOBALS['store'][$GLOBALS['guest']]));
 });
 test_case('wrong account session and incompatible handlers fail closed', function ($bridge) {
     WC()->session->id = '8';
@@ -200,6 +247,40 @@ test_case('imports are bounded and both token-session and account caches are inv
     check(in_array(['prefix_' . $GLOBALS['guest'], WC_SESSION_CACHE_GROUP], $GLOBALS['cache_deletes'], true));
     check(in_array(['prefix_7', WC_SESSION_CACHE_GROUP], $GLOBALS['cache_deletes'], true));
     eq($GLOBALS['saves'], 0);
+});
+test_case('matching quantities sum once, including decimal Woo quantities and zero variation IDs', function ($bridge) {
+    $GLOBALS['store']['7']['cart'] = maybe_serialize(['same' => ['product_id' => 12, 'variation_id' => 0, 'quantity' => 0.5]]);
+    $GLOBALS['store'][$GLOBALS['guest']]['cart'] = maybe_serialize(['same' => ['product_id' => 12, 'variation_id' => 0, 'quantity' => 1.25]]);
+    eq($bridge->merge(new WP_REST_Request())->status, 200); eq(read_store('7')['cart']['same']['quantity'], 1.75);
+    for ($i = 0; $i < 4; $i++) eq($bridge->merge(new WP_REST_Request())->status, 200);
+    eq(read_store('7')['cart']['same']['quantity'], 1.75);
+});
+test_case('Woo quantity limits reject the sum without losing either cart', function ($bridge) {
+    $before = $GLOBALS['store']; $GLOBALS['maximum'][12] = 2;
+    eq($bridge->merge(new WP_REST_Request())->code, 'cart_merge_quantity_conflict'); eq($GLOBALS['store'], $before); eq($GLOBALS['saves'], 0);
+});
+test_case('shared product stock, reserved stock and stale products are checked before merging', function ($bridge) {
+    $GLOBALS['stock_parent'][13] = 12; $GLOBALS['stock'][12] = 5; $GLOBALS['reserved'][12] = 2;
+    $before = $GLOBALS['store']; eq($bridge->merge(new WP_REST_Request())->code, 'cart_merge_quantity_conflict'); eq($GLOBALS['store'], $before);
+    $GLOBALS['stock'] = []; $GLOBALS['unavailable'] = [14];
+    eq($bridge->merge(new WP_REST_Request())->code, 'cart_merge_product_changed'); eq($GLOBALS['store'], $before);
+});
+test_case('a Woo hook changing quantities cannot retire the complete guest cart on replay', function ($bridge) {
+    $GLOBALS['hook_drops_item'] = true;
+    eq($bridge->merge(new WP_REST_Request())->data['status'], 502);
+    check(isset($GLOBALS['store'][$GLOBALS['guest']]));
+    $GLOBALS['hook_drops_item'] = false;
+    eq($bridge->merge(new WP_REST_Request())->code, 'cart_sync_conflict');
+    check(isset($GLOBALS['store'][$GLOBALS['guest']]));
+    eq(read_store('7')['cart']['same']['quantity'], 3);
+});
+test_case('a Woo hook saving then failing cannot cause a repeated quantity addition', function ($bridge) {
+    $GLOBALS['calculation_fails'] = true;
+    eq($bridge->merge(new WP_REST_Request())->data['status'], 502);
+    eq(read_store('7')['cart']['same']['quantity'], 3); check(isset($GLOBALS['store'][$GLOBALS['guest']]));
+    $GLOBALS['calculation_fails'] = false;
+    eq($bridge->merge(new WP_REST_Request())->status, 200); eq(read_store('7')['cart']['same']['quantity'], 3);
+    check(!isset($GLOBALS['store'][$GLOBALS['guest']]));
 });
 echo json_encode(['passed' => $passed, 'failed' => $failed, 'environment' => 'WordPress/Woo API doubles; no real database or bank'], JSON_PRETTY_PRINT) . "\n";
 exit($failed ? 1 : 0);

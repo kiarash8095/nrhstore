@@ -22,7 +22,7 @@ process.env.CART_LOCK_DIR = require('node:path').join(
 );
 let calls, scenario;
 const response = (data, status = 200, headers = {}) =>
-  Response.json(data, { status, headers });
+  Response.json(data, { status, headers: { 'X-NRH-Account-Lock': 'mysql-v1', ...headers } });
 beforeEach(() => {
   calls = [];
   scenario = '';
@@ -34,6 +34,7 @@ beforeEach(() => {
   global.fetch = async (url, options = {}) => {
     const path = new URL(url).pathname;
     calls.push({ url: String(url), method: options.method || 'GET', options });
+    if (path.endsWith('/nrh/v1/capabilities')) return response({ version: '1.3.0', account_lock: 'mysql-v1', cart_merge: 'sum-v1' });
     if (scenario === 'outage')
       return response(
         { message: '/home/private SECRET merchant_key stacktrace' },
@@ -405,7 +406,7 @@ test('a lost mutation response is never automatically replayed', async () => {
   );
   assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
 });
-test('account mutations serialize across requests for the same customer', async () => {
+test('parallel account mutations delegate to the shared WordPress lock protocol', async () => {
   const upstream = global.fetch;
   let active = 0,
     max = 0;
@@ -437,7 +438,9 @@ test('account mutations serialize across requests for the same customer', async 
     results.map((result) => result.status),
     [200, 200],
   );
-  assert.equal(max, 1);
+  assert.equal(max, 2);
+  assert.equal(calls.filter(call => new URL(call.url).pathname.endsWith('/capabilities')).length, 2);
+  for (const call of calls.filter(call => call.method === 'POST')) assert.equal(call.options.headers['X-NRH-Account-Lock'], 'mysql-v1');
 });
 test('write rate limits reject excess requests before a new upstream write', async () => {
   for (let i = 0; i < 25; i++)
@@ -445,4 +448,50 @@ test('write rate limits reject excess requests before a new upstream write', asy
   const count = calls.length;
   assert.equal((await run('addresses/101/default', 'POST', {})).status, 429);
   assert.equal(calls.length, count);
+});
+
+test('account writes work without a local lock directory on every hosting environment', async () => {
+  const directory = process.env.CART_LOCK_DIR, vercel = process.env.VERCEL;
+  try {
+    process.env.CART_LOCK_DIR = __filename;
+    for (const platform of [undefined, '0', '1']) {
+      if (platform === undefined) delete process.env.VERCEL; else process.env.VERCEL = platform;
+      assert.equal((await run('addresses/101/default', 'POST', {})).status, 200);
+      assert.equal((await run('wishlist', 'POST', { product_id: 12 })).status, 200);
+    }
+    for (const call of calls) {
+      assert.equal(call.options.headers.Origin, 'https://cms.example.test');
+      if (call.method !== 'GET') assert.equal(call.options.headers['X-NRH-Account-Lock'], 'mysql-v1');
+    }
+  } finally {
+    process.env.CART_LOCK_DIR = directory;
+    if (vercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = vercel;
+  }
+});
+
+test('missing, old, cached or unavailable account coordination prevents the mutation', async () => {
+  const upstream = global.fetch;
+  for (const mode of ['missing', 'old', 'cached', 'offline', 'oversized']) {
+    let writes = 0;
+    global.fetch = async (url, options) => {
+      if (new URL(url).pathname.endsWith('/capabilities')) {
+        if (mode === 'offline') throw new Error('Connection lost');
+        if (mode === 'missing') return Response.json({ code: 'rest_no_route' }, { status: 404 });
+        return Response.json({ account_lock: mode === 'old' ? 'memory' : 'mysql-v1', ...(mode === 'oversized' ? { padding: 'x'.repeat(5000) } : {}) }, { headers: mode === 'cached' ? { 'CF-Cache-Status': 'HIT' } : {} });
+      }
+      if (options.method !== 'GET') writes++;
+      return upstream(url, options);
+    };
+    const result = await run('wishlist', 'POST', { product_id: 12 });
+    assert.equal(result.status, 503, mode); assert.equal(writes, 0, mode);
+    assert.notEqual((await result.json()).code, 'session_expired');
+  }
+});
+
+test('Origin policy failures and permission denials do not incorrectly expire the account', async () => {
+  for (const [code, status, expected] of [['boom_bad_origin', 403, 503], ['permission_denied', 403, 403], ['rest_cookie_invalid_nonce', 403, 401]]) {
+    global.fetch = async () => Response.json({ code }, { status });
+    const r = await run('profile'); assert.equal(r.status, expected);
+    if (code !== 'rest_cookie_invalid_nonce') assert.notEqual((await r.json()).code, 'session_expired');
+  }
 });

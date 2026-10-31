@@ -19,7 +19,10 @@ export const customerSchema = z.object({ billing_address: addressSchema, shippin
 export const shippingSchema = z.object({ package_id: z.union([z.number().int().nonnegative(), z.string().max(100)]), rate_id: z.string().min(1).max(200) }).strict();
 export const checkoutSchema = z.object({
   attempt_id: z.uuidv4(), cart_hash: z.string().regex(/^[a-f0-9]{64}$/), expected_total: z.string().regex(/^[0-9]{1,18}$/),
+  payment_method: z.enum(['melli_pay', 'bacs']).default('melli_pay'),
+  customer_note: z.string().trim().max(1000).default(''),
 }).strict();
+export type CheckoutPaymentMethod = 'melli_pay' | 'bacs';
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type PaymentRedirect = { order_id: number; redirect_url: string };
 export type AddCartItemInput = z.infer<typeof addItemSchema>;

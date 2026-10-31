@@ -1,6 +1,11 @@
 // lib/woocommerce/woocommerce.types.ts
 
 export interface WooCommerceCart {
+  nrh_checkout?: {
+    version: 2;
+    methods: { id: 'melli_pay' | 'bacs'; title: string; description: string }[];
+    cashback: string | null;
+  };
   account_sync_pending?: boolean;
   items: WooCommerceCartItem[];
   coupons: WooCommerceCartCoupon[];

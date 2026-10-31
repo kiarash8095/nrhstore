@@ -26,12 +26,16 @@ export function cartTokenIdentity(token: string): string {
   return "token:" + token;
 }
 
-// All Node workers must share this persistent directory, as with auth/banner storage.
+// Production cart/account callers explicitly delegate to the WordPress database
+// on every host. The file implementation remains for legacy/local consumers.
 // Locks never expire while a request may still be writing to WooCommerce.
 export async function withCartLocks<T>(
   identities: string[],
   operation: () => Promise<T>,
+  options: { upstream?: boolean } = {},
 ): Promise<T> {
+  // Delegation is explicit: unrelated callers must not silently lose their lock.
+  if (options.upstream) return operation();
   if (!identities.length) return operation();
   // Runtime lock files are persistent host data, not files to bundle with the app.
   const directory = process.env.CART_LOCK_DIR

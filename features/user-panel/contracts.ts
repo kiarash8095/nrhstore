@@ -4,6 +4,7 @@ import { iranMobileSchema, toAsciiDigits } from '@/features/auth/contracts';
 export const accountSections = [
   'dashboard',
   'orders',
+  'cart',
   'wishlist',
   'support',
   'addresses',

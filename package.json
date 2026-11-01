@@ -19,6 +19,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit --incremental false",
     "test:banners": "node features/banners/tests/banners.integration.cjs",
+    "test:banners:layout": "node --test features/banners/tests/banner-layout.test.cjs features/banners/tests/banner-slider.test.cjs",
     "test:banners:auth": "node --test features/banners/tests/admin-session.test.cjs",
     "test:banners:portability": "node features/banners/tests/banners.portability.cjs",
     "test:banners:browser": "node features/banners/tests/banners.browser.cjs",
